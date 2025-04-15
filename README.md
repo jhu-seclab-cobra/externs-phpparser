@@ -35,6 +35,7 @@ repositories {
 2. Add the dependency:
 ```kotlin
 dependencies {
+    // Use the latest release version or a specific commit hash
     implementation("com.github.COBRA-Static-Analysis:phpparser.kt:1.0.0")
 }
 ```
@@ -44,30 +45,21 @@ dependencies {
 ### Kotlin
 
 ```kotlin
+import cobra.extern.phpparser.BinPhpParser
+import java.io.File
+
 // Create a parser instance with configuration
 val custPhpParser = BinPhpParser().apply {
-    // Set output format (default is S_EXPR)
     dumpType = BinPhpParser.DumpType.JSON
-    
-    // Enable pretty printing
     doPrettyPrint = true
-    
-    // Enable name resolution
     doResolveName = true
-    
-    // Include position information
     doWithPositions = true
-    
-    // Include column information
     doWithColInfo = true
-    
-    // Enable error recovery
     doWithRecovery = true
 }
 
 // Parse a PHP file with temporary configuration
 val result = custPhpParser.executeWith {
-    // Only set the target PHP file to parse
     target = File("path/to/your/php_file_or_project")
 }
 
@@ -78,11 +70,14 @@ println(result.output)
 ### Java
 
 ```java
+import cobra.extern.phpparser.BinPhpParser;
+import java.io.File;
+
 // Create a parser instance
 BinPhpParser parser = new BinPhpParser();
 
 // Configure parsing options
-parser.setTarget(new File("path/to/your/php/file.php"));
+parser.setTarget(new File("path/to/your/php_file_or_project"));
 parser.setDumpType(BinPhpParser.DumpType.JSON);
 parser.setDoPrettyPrint(true);
 parser.setDoResolveName(true);
