@@ -1,4 +1,12 @@
-# PHP-Parser.kt
+# COBRA.EXTERNS.PHPPARSER
+
+[![codecov](https://codecov.io/gh/jhu-seclab-cobra/externs-phpparser/branch/main/graph/badge.svg)](https://codecov.io/gh/jhu-seclab-cobra/externs-phpparser)
+![Kotlin JVM](https://img.shields.io/badge/Kotlin%20JVM-2.0.1%20%7C%20JVM%201.8%2B-blue?logo=kotlin)
+[![Release](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/jhu-seclab-cobra/externs-phpparser/releases/tag/v0.1.0)
+[![last commit](https://img.shields.io/github/last-commit/jhu-seclab-cobra/externs-phpparser)](https://github.com/jhu-seclab-cobra/externs-phpparser/commits/main)
+[![](https://jitpack.io/v/jhu-seclab-cobra/externs-phpparser.svg)](https://jitpack.io/#jhu-seclab-cobra/externs-phpparser)
+![Repo Size](https://img.shields.io/github/repo-size/jhu-seclab-cobra/externs-phpparser)
+[![license](https://img.shields.io/github/license/jhu-seclab-cobra/externs-phpparser)](./LICENSE)
 
 A Kotlin library that provides a wrapper for PHP-Parser 4.19.4, enabling PHP code parsing and AST generation in Kotlin applications. The library includes a self-contained PHP environment for specific platforms, making it system-independent for those platforms.
 
