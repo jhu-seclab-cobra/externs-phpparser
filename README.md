@@ -35,8 +35,7 @@ repositories {
 2. Add the dependency:
 ```kotlin
 dependencies {
-    // Use the latest release version or a specific commit hash
-    implementation("com.github.COBRA-Static-Analysis:phpparser.kt:1.0.0")
+    implementation("com.github.jhu-seclab-cobra:externs-phpparser:0.1.0")
 }
 ```
 
@@ -45,7 +44,7 @@ dependencies {
 ### Kotlin
 
 ```kotlin
-import cobra.extern.phpparser.BinPhpParser
+import edu.jhu.cobra.externs.phpparser.BinPhpParser
 import java.io.File
 
 // Create a parser instance with configuration
@@ -70,7 +69,7 @@ println(result.output)
 ### Java
 
 ```java
-import cobra.extern.phpparser.BinPhpParser;
+import edu.jhu.cobra.externs.phpparser.BinPhpParser;
 import java.io.File;
 
 // Create a parser instance
