@@ -1,6 +1,6 @@
-package cobra.extern.phpparser
+package edu.jhu.cobra.externs.phpparser
 
-import cobra.extern.phpparser.abc.AbcBinary
+import edu.jhu.cobra.externs.phpparser.abc.AbcBinary
 import java.io.File
 import kotlin.io.path.Path
 import kotlin.io.path.div

@@ -1,6 +1,6 @@
-package cobra.extern.phpparser.abc
+package edu.jhu.cobra.externs.phpparser.abc
 
-import cobra.extern.phpparser.ExternalBinaryArgumentMissException
+import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.*
