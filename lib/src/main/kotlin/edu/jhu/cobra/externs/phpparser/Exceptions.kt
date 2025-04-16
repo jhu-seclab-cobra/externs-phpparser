@@ -1,4 +1,4 @@
-package cobra.extern.phpparser
+package edu.jhu.cobra.externs.phpparser
 
 /**
  * Thrown when a required executable is missing in a certain directory.
@@ -9,7 +9,13 @@ package cobra.extern.phpparser
 class ExternalBinaryNotFoundException(name: String, under: String? = null) :
     RuntimeException("$name do not exist under ${under ?: "the system"}.")
 
-
+/**
+ * Thrown when an executable is found but is invalid for some reason.
+ * This could be due to incorrect version, corrupted binary, or other validation failures.
+ *
+ * @param name the name of the invalid executable
+ * @param reason an optional description of why the executable is invalid
+ */
 class ExternalBinaryInvalidException(name: String, reason: String? = null) :
     RuntimeException("$name provided is valid, because $reason.")
 

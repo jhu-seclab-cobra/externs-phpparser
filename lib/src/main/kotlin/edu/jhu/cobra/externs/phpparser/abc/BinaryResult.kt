@@ -1,4 +1,4 @@
-package cobra.extern.phpparser.abc
+package edu.jhu.cobra.externs.phpparser.abc
 
 import java.io.File
 

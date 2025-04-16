@@ -1,7 +1,7 @@
-package cobra.extern.phpparser
+package edu.jhu.cobra.externs.phpparser
 
-import cobra.extern.phpparser.abc.AbcBinary
-import cobra.extern.phpparser.abc.BinaryResult
+import edu.jhu.cobra.externs.phpparser.abc.AbcBinary
+import edu.jhu.cobra.externs.phpparser.abc.BinaryResult
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
@@ -67,6 +67,7 @@ fun searchBin(name: String): File? {
  * @param minRequired Minimum required version, can be complete or incomplete format
  * @param includeEqual Whether to include equality case, true means "greater than or equal to", false means "strictly greater than"
  * @return Whether current version meets the minimum version requirement
+ * @throws ExternalBinaryInvalidException if the version format is invalid
  */
 fun isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean = true): Boolean {
     val current = runCatching {
@@ -95,13 +96,13 @@ fun isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean =
     return includeEqual
 }
 
-
 /**
  * Extracts a specific file from a ZIP archive to a destination path.
+ * The function searches for the first matching file in the ZIP archive and extracts it to the specified destination.
  *
- * @param zipFile The ZIP file to extract from
- * @param fromZipPath The path of the file inside the ZIP to extract
+ * @param zipInputStream The input stream of the ZIP file to extract from
  * @param toOutPath The destination path where the extracted file will be saved
+ * @param fromZipPath One or more paths of the files inside the ZIP to extract
  * @return Boolean indicating whether extraction was successful
  * @throws Exception If any error occurs during extraction
  */
@@ -126,8 +127,7 @@ fun extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg from
  * The implementation is platform-independent, ensuring consistent results
  * across different operating systems for the same file content.
  *
- * @return A hexadecimal string representation of the CRC32 checksum
- * @throws IllegalArgumentException If the file doesn't exist or isn't a regular file
+ * @return A hexadecimal string representation of the CRC32 checksum, or null if the file doesn't exist or isn't a regular file
  * @throws Exception If an error occurs while reading the file
  */
 val Path.crc32ChecksumString
@@ -147,8 +147,11 @@ val Path.crc32ChecksumString
         return "%08x".format(crc.value)
     }
 
+/**
+ * Calculates a CRC32 checksum of a file for integrity verification.
+ * This is a convenience extension property for [File] that delegates to [Path.crc32ChecksumString].
+ *
+ * @return A hexadecimal string representation of the CRC32 checksum, or null if the file doesn't exist or isn't a regular file
+ * @throws Exception If an error occurs while reading the file
+ */
 val File.crc32ChecksumString get() = toPath().crc32ChecksumString
-
-
-
-
