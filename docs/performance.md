@@ -24,6 +24,7 @@ Run: `./gradlew performanceTest --rerun`
 | P1-1 | Remove debug println in extractFileFromZip | Utils.kt | extractFileFromZip: 152,618 -> 99,786 ns/op (-34.6%) |
 | P1-2 | Compile Regex as top-level constants | Utils.kt | regex path: 495.0 -> 157.1 ns/op (-68.3%, 3.2x) |
 | P1-3 | Use contentHashCode for cache key | AbcBinary.kt | hash: 179.7 -> 24.1 ns/op (-86.6%, 7.5x) |
+| P1-4 | Use Sequence for PATH search | Utils.kt | PATH search: 51,032 -> 1,076 ns/op (-97.9%, 47.4x) |
 
 ## Completed Optimizations
 
@@ -42,17 +43,17 @@ Run: `./gradlew performanceTest --rerun`
 - **Change**: Replaced `cmdArray.joinToString(" ").hashCode()` with `cmdArray.contentHashCode()`
 - **Measured**: hash computation 179.7 -> 24.1 ns/op (**-86.6%, 7.5x faster**), no cross-regression
 
+### P1-4: Use `Sequence` for PATH search in `searchBin` — KEEP
+- **File**: `Utils.kt`
+- **Change**: Replaced `split().map().filter().asSequence()` with `splitToSequence().map().filter()` — lazy from the start
+- **Measured**: PATH search pattern 51,032 -> 1,076 ns/op (**-97.9%, 47.4x faster**), no cross-regression
+
 ## Evaluated & Rejected
 
 | ID | Title | Result | Reason |
 |----|-------|--------|--------|
 
 ## Candidates
-
-### P1-4: Use `Sequence` for PATH search in `searchBin`
-- **File(s)**: `Utils.kt`
-- **Hypothesis**: Eager `split().map().filter()` creates intermediate lists; converting to sequence from the start enables lazy evaluation and short-circuiting
-- **Risk**: Low
 
 ### P1-5: Reduce intermediate collections in `getCommandArray`
 - **File(s)**: `BinPhpParser.kt`

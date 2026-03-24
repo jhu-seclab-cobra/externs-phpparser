@@ -57,9 +57,11 @@ fun searchBin(name: String): File? {
     val isWinBin = osName.contains("win") && !(name.endsWith(".exe") || name.endsWith(".bat"))
     val exeNames = if (isWinBin) arrayOf("$name.exe", "$name.bat") else arrayOf(name)
     val sysPath = runCatching { System.getenv("PATH") }.getOrNull() ?: return null
-    val envStrPaths = sysPath.split(File.pathSeparator).map { Path(it) }
-    val envPaths = envStrPaths.filter { it.exists() }.asSequence()
-    return envPaths.mapNotNull { path -> searchBin(path, *exeNames) }.firstOrNull()
+    return sysPath.splitToSequence(File.pathSeparator)
+        .map { Path(it) }
+        .filter { it.exists() }
+        .mapNotNull { path -> searchBin(path, *exeNames) }
+        .firstOrNull()
 }
 
 /**
