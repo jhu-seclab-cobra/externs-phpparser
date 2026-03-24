@@ -63,6 +63,13 @@ val result = parser.executeWith {
 
 **Timeout**: Default 1 minute. Set via `parser.timeout = Duration.ofMinutes(5)`.
 
+## Documentation
+
+- [Concepts & Terminology](docs/idea.md) — problem context, data flow, core concepts, scenarios
+- [Design](docs/design.md) — class/type specifications, function signatures, exceptions, validation rules
+- [Implementation Notes](docs/impl.md) — APIs, libraries, developer instructions
+- [PHP-Parser AST Node Reference](docs/php_parser_ast.md) — all AST node types, subnodes, JSON format, constants
+
 ## License
 
 [GNU2.0](./LICENSE)
