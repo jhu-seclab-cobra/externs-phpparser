@@ -8,40 +8,28 @@
 ![Repo Size](https://img.shields.io/github/repo-size/jhu-seclab-cobra/externs-phpparser)
 [![license](https://img.shields.io/github/license/jhu-seclab-cobra/externs-phpparser)](./LICENSE)
 
-A Kotlin library that provides a wrapper for PHP-Parser 4.19.4, enabling PHP code parsing and AST generation in Kotlin applications. The library includes a self-contained PHP environment for specific platforms, making it system-independent for those platforms.
+Kotlin/JVM wrapper for [PHP-Parser 4.19.4](https://github.com/nikic/PHP-Parser). Parses PHP source files into AST text (S-expression, JSON, or var-dump) by managing a bundled or system PHP binary behind a single `execute()` call.
 
-## Features
+## Scope
 
-- Self-contained PHP environment for supported platforms
-- Cross-platform compatibility
-- Built-in binary version validation and checksum verification
-- Configurable parsing options (pretty printing, name resolution, position info, etc.)
+| Owned | Not Owned |
+|-------|-----------|
+| PHP binary resolution (bundled ZIP or system PATH) | AST interpretation or transformation |
+| Parser PHAR extraction with CRC32 integrity check | PHP installation on unsupported platforms |
+| Process lifecycle, timeout, output caching | Downstream AST consumption |
 
-## Requirements
-
-- Java 8 or higher
-- PHP 7.1+ (only required for systems not listed below)
-
-### Self-contained Environment Support
-
-The library includes a complete PHP environment for the following platforms:
-- macOS (Intel x86_64 and Apple Silicon aarch64)
-- Linux (x86_64 and aarch64)
-- Windows (x86_64)
-
-For other platforms, the library will use the PHP executable from your system (PHP 7.1+ required).
+**Bundled PHP platforms** (no system PHP needed): macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64.
+Other platforms require PHP 7.1+ on system PATH.
 
 ## Installation
 
-1. Add JitPack repository to your `build.gradle.kts`:
+Add JitPack repository and dependency to `build.gradle.kts`:
+
 ```kotlin
 repositories {
     maven { url = uri("https://jitpack.io") }
 }
-```
 
-2. Add the dependency:
-```kotlin
 dependencies {
     implementation("com.github.jhu-seclab-cobra:externs-phpparser:0.1.0")
 }
@@ -49,78 +37,32 @@ dependencies {
 
 ## Usage
 
-### Kotlin
-
 ```kotlin
-import edu.jhu.cobra.externs.phpparser.BinPhpParser
-import java.io.File
-
-// Create a parser instance with configuration
-val custPhpParser = BinPhpParser().apply {
-    dumpType = BinPhpParser.DumpType.JSON
+val parser = BinPhpParser().apply {
+    dumpType = BinPhpParser.DumpType.JSON  // S_EXPR (default), VAR, JSON
     doPrettyPrint = true
     doResolveName = true
+}
+
+// parse a PHP file
+parser.target = File("path/to/file.php")
+val result = parser.execute()
+// result.code: 0 = success, -1 = timeout
+// result.output: File containing AST text
+
+// or use executeWith for one-off config (restores original state after)
+val result = parser.executeWith {
+    target = File("path/to/another.php")
     doWithPositions = true
-    doWithColInfo = true
-    doWithRecovery = true
 }
-
-// Parse a PHP file with temporary configuration
-val result = custPhpParser.executeWith {
-    target = File("path/to/your/php_file_or_project")
-}
-
-// Get the output
-println(result.output)
 ```
 
-### Java
+**Options**: `doPrettyPrint`, `doResolveName`, `doWithColInfo`, `doWithPositions`, `doWithRecovery` — all default to `false`.
 
-```java
-import edu.jhu.cobra.externs.phpparser.BinPhpParser;
-import java.io.File;
+**Caching**: Set `parser.doCacheOutput = true` to skip re-execution for identical commands. Cache key is the content hash of the command array.
 
-// Create a parser instance
-BinPhpParser parser = new BinPhpParser();
-
-// Configure parsing options
-parser.setTarget(new File("path/to/your/php_file_or_project"));
-parser.setDumpType(BinPhpParser.DumpType.JSON);
-parser.setDoPrettyPrint(true);
-parser.setDoResolveName(true);
-parser.setDoWithPositions(true);
-parser.setDoWithColInfo(true);
-parser.setDoWithRecovery(true);
-
-// Parse the PHP file
-BinaryResult result = parser.execute();
-
-// Get the output
-System.out.println(result.getOutput());
-```
-
-### Output Formats
-
-The parser supports three output formats:
-- `DumpType.S_EXPR`: S-Expression format (default)
-- `DumpType.VAR`: Var Dump format
-- `DumpType.JSON`: JSON format
-
-### Environment Management
-
-The library:
-1. For supported platforms (macOS, Windows, Linux):
-   - Uses the bundled PHP environment
-   - No system PHP installation required
-   - Completely system-independent
-2. For other platforms:
-   - Uses the system's PHP executable (PHP 7.1+ required)
-   - Requires PHP to be installed and available in the system PATH
+**Timeout**: Default 1 minute. Set via `parser.timeout = Duration.ofMinutes(5)`.
 
 ## License
 
 [GNU2.0](./LICENSE)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
