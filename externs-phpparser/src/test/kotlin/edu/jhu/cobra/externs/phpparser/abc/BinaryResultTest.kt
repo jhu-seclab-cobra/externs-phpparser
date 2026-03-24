@@ -1,26 +1,40 @@
 package edu.jhu.cobra.externs.phpparser.abc
 
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import java.io.File
+import kotlin.test.assertNotEquals
 
 class BinaryResultTest {
+
     @Test
-    fun testSuccessfulExecution() {
-        val outputFile = File("/tmp/output.txt")
-        val result = BinaryResult(0, outputFile)
-        assertNotNull(result)
+    fun `should store code and output file`() {
+        val file = File("/tmp/output.txt")
+        val result = BinaryResult(0, file)
         assertEquals(0, result.code)
-        assertEquals(outputFile, result.output)
+        assertEquals(file, result.output)
     }
 
     @Test
-    fun testErrorExecution() {
-        val outputFile = File("/tmp/error.txt")
-        val result = BinaryResult(1, outputFile)
-        assertNotNull(result)
-        assertEquals(1, result.code)
-        assertEquals(outputFile, result.output)
+    fun `should support data class equality`() {
+        val file = File("/tmp/out.txt")
+        val r1 = BinaryResult(0, file)
+        val r2 = BinaryResult(0, file)
+        assertEquals(r1, r2)
     }
-} 
+
+    @Test
+    fun `should distinguish different codes`() {
+        val file = File("/tmp/out.txt")
+        assertNotEquals(BinaryResult(0, file), BinaryResult(1, file))
+    }
+
+    @Test
+    fun `should support copy with modified code`() {
+        val file = File("/tmp/out.txt")
+        val original = BinaryResult(0, file)
+        val copied = original.copy(code = -1)
+        assertEquals(-1, copied.code)
+        assertEquals(file, copied.output)
+    }
+}
