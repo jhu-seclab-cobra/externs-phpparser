@@ -110,11 +110,11 @@ class BinPhpParser(phpBinary: File? = null, parserBinary: File? = null) : AbcBin
      */
     var doWithRecovery: Boolean by Option("--with-recovery", false)
 
-    override fun getCommandArray(): Array<String> {
-        val boolOptions = allOptions.filterValues { it is Boolean && it }.map { it.key }.toTypedArray()
-        return arrayOf(
-            phpBinaryFile.absolutePath, parserBinaryFile.absolutePath,
-            *boolOptions, dumpType.toString(), target.absolutePath
-        )
-    }
+    override fun getCommandArray(): Array<String> = buildList {
+        add(phpBinaryFile.absolutePath)
+        add(parserBinaryFile.absolutePath)
+        for ((key, value) in allOptions) if (value is Boolean && value) add(key)
+        add(dumpType.toString())
+        add(target.absolutePath)
+    }.toTypedArray()
 }
