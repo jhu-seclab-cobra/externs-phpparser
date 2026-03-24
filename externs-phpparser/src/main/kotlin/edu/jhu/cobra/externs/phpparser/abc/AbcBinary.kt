@@ -85,7 +85,7 @@ abstract class AbcBinary {
     open fun execute(): BinaryResult {
         if (workTmpDir.notExists()) workTmpDir.createDirectories()
         val cmdArray = this.getCommandArray()
-        val cmdUname = cmdArray.joinToString(" ").hashCode().absoluteValue.toString()
+        val cmdUname = cmdArray.contentHashCode().absoluteValue.toString()
         val tmpStdOut = workTmpDir.resolve(".$cmdUname.cache").toFile()
         if (doCacheOutput && tmpStdOut.exists()) return BinaryResult(code = 0, output = tmpStdOut)
         val pBuilder = ProcessBuilder(*cmdArray)
