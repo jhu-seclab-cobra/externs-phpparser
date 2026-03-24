@@ -83,7 +83,7 @@ class PerformanceBenchmark {
     @Test
     fun `P1-3 benchmark cache key hashing`() {
         val cmdArray = arrayOf(
-            "/usr/local/bin/php", "/tmp/cobra/binaries/BinPhpParser/php-parser-4.19.4",
+            "/usr/local/bin/php", "/tmp/cobra/binaries/BinPhpParser/php-parser-5.7.0",
             "--json-dump", "--with-positions", "/path/to/some/file.php"
         )
         benchmark("joinToString-hashCode") {
