@@ -22,10 +22,10 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Generate coverage report
-        run: ./gradlew :lib:test :lib:koverXmlReport
+        run: ./gradlew :jhu-seclab-cobra-externs-phpparser:test :jhu-seclab-cobra-externs-phpparser:koverXmlReport
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./lib/build/reports/kover/report.xml
+          files: ./externs-phpparser/build/reports/kover/report.xml
