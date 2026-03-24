@@ -114,7 +114,6 @@ fun extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg from
         var inZipEntry: ZipEntry?
         do {
             inZipEntry = zip.nextEntry
-            println("Checking entry: ${inZipEntry?.name}")
         } while (inZipEntry != null && inZipEntry.name.uniform() !in uniTargets)
         if (inZipEntry == null) return false // there is no target file existing in the zip file
         Files.copy(zip, toOutPath, REPLACE_EXISTING)
