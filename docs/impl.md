@@ -2,7 +2,7 @@
 
 ## Libraries
 
-- `nikic/php-parser` v5.x — PHP AST parser. Bundled as PHAR, invoked via `BinPhpParser`.
+- `nikic/php-parser` v5.7.0 — PHP AST parser. Bundled as PHAR, invoked via `BinPhpParser`.
 
 ## APIs
 

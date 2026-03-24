@@ -8,7 +8,7 @@
 ![Repo Size](https://img.shields.io/github/repo-size/jhu-seclab-cobra/externs-phpparser)
 [![license](https://img.shields.io/github/license/jhu-seclab-cobra/externs-phpparser)](./LICENSE)
 
-Kotlin/JVM wrapper for [PHP-Parser 4.19.4](https://github.com/nikic/PHP-Parser). Parses PHP source files into AST text (S-expression, JSON, or var-dump) by managing a bundled or system PHP binary behind a single `execute()` call.
+Kotlin/JVM wrapper for [PHP-Parser 5.7.0](https://github.com/nikic/PHP-Parser). Parses PHP source files into AST text (S-expression, JSON, or var-dump) by managing a bundled or system PHP binary behind a single `execute()` call.
 
 ## Scope
 
