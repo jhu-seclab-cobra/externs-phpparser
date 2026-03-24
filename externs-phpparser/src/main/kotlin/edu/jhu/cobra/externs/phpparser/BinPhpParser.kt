@@ -41,7 +41,7 @@ class BinPhpParser(phpBinary: File? = null, parserBinary: File? = null) : AbcBin
         "php-cli-8.4-macos-aarch64" to "7a3d2fca",
         "php-cli-8.4-macos-x86_64" to "3500f339",
         "php-cli-8.4-windows-x86_64" to "ef39e63d",
-        "php-parser-4.19.4" to "e5711434"
+        "php-parser-5.7.0" to "95f828b5"
     )
 
     private val phpBinaryFile: File = run {
@@ -65,7 +65,7 @@ class BinPhpParser(phpBinary: File? = null, parserBinary: File? = null) : AbcBin
 
     private val parserBinaryFile: File = run {
         if (parserBinary != null) return@run parserBinary
-        val fileName = "php-parser-4.19.4"
+        val fileName = "php-parser-5.7.0"
         val expFilePath = this.workTmpDir / fileName
         if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return@run expFilePath.toFile()
         val loadStream = Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")!!
