@@ -17,6 +17,17 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
+}
+
+tasks.test {
+    useJUnitPlatform { excludeTags("performance") }
+}
+
+tasks.register<Test>("performanceTest") {
+    useJUnitPlatform { includeTags("performance") }
+    jvmArgs("-Xmx2g", "-Xms1g")
+    testLogging { showStandardStreams = true }
 }
 
 kotlin {
