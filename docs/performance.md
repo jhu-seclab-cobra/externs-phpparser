@@ -22,6 +22,7 @@ Run: `./gradlew performanceTest --rerun`
 | ID | Title | File(s) | Impact |
 |----|-------|---------|--------|
 | P1-1 | Remove debug println in extractFileFromZip | Utils.kt | extractFileFromZip: 152,618 -> 99,786 ns/op (-34.6%) |
+| P1-2 | Compile Regex as top-level constants | Utils.kt | regex path: 495.0 -> 157.1 ns/op (-68.3%, 3.2x) |
 
 ## Completed Optimizations
 
@@ -30,17 +31,17 @@ Run: `./gradlew performanceTest --rerun`
 - **Change**: Removed `println("Checking entry: ${inZipEntry?.name}")` from ZIP extraction loop
 - **Measured**: extractFileFromZip 152,618 -> 99,786 ns/op (**-34.6%**), no cross-regression
 
+### P1-2: Compile `Regex` as top-level constants in `isPhpVersionValid` — KEEP
+- **File**: `Utils.kt`
+- **Change**: Extracted `Regex("""PHP (\d+\.\d+\.\d+)""")` and `Regex("""^\d+(\.\d+){0,2}$""")` to file-level `private val`
+- **Measured**: regex path 495.0 -> 157.1 ns/op (**-68.3%, 3.2x faster**), no cross-regression
+
 ## Evaluated & Rejected
 
 | ID | Title | Result | Reason |
 |----|-------|--------|--------|
 
 ## Candidates
-
-### P1-2: Compile `Regex` as top-level constants in `isPhpVersionValid`
-- **File(s)**: `Utils.kt`
-- **Hypothesis**: Two `Regex(...)` objects are constructed on every call; moving to top-level `val` avoids repeated compilation
-- **Risk**: Low
 
 ### P1-3: Avoid `joinToString` allocation for cache key in `execute()`
 - **File(s)**: `AbcBinary.kt`

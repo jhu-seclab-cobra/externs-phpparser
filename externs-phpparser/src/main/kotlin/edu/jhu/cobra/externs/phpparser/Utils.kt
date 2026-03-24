@@ -13,6 +13,9 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import kotlin.io.path.*
 
+private val PHP_VERSION_OUTPUT_REGEX = Regex("""PHP (\d+\.\d+\.\d+)""")
+private val VERSION_FORMAT_REGEX = Regex("""^\d+(\.\d+){0,2}$""")
+
 /**
  * Temporarily modifies the configuration of this executable, executes it, and then restores the original configuration.
  * This function allows for temporary adjustments to an executable's arguments or options just for the duration of one execution.
@@ -75,14 +78,11 @@ fun isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean =
         if (!process.waitFor(10, TimeUnit.SECONDS)) process.destroyForcibly()
         val output = process.inputStream.bufferedReader().readLine() ?: return@runCatching null
         // Extract version from output like "PHP 7.4.10 (cli) ..."
-        val versionRegex = Regex("""PHP (\d+\.\d+\.\d+)""")
-        val matchResult = versionRegex.find(output) ?: return@runCatching null
+        val matchResult = PHP_VERSION_OUTPUT_REGEX.find(output) ?: return@runCatching null
         matchResult.groupValues[1]
     }.getOrNull() ?: ""
-    // Validate version format (accepts "number" or "number.number" or "number.number.number")
-    val versionRegex = Regex("""^\d+(\.\d+){0,2}$""")
-    if (!versionRegex.matches(current)) throw ExternalBinaryInvalidException("Invalid version format: $current")
-    if (!versionRegex.matches(minRequired)) throw ExternalBinaryInvalidException("Invalid version format: $minRequired")
+    if (!VERSION_FORMAT_REGEX.matches(current)) throw ExternalBinaryInvalidException("Invalid version format: $current")
+    if (!VERSION_FORMAT_REGEX.matches(minRequired)) throw ExternalBinaryInvalidException("Invalid version format: $minRequired")
     val currentParts = current.split(".").map { it.toInt() }
     val requiredParts = minRequired.split(".").map { it.toInt() }
     // Compare versions
