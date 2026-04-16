@@ -11,7 +11,7 @@ externs-phpparser is the PHP parsing adapter in the Cobra analysis pipeline, tra
 **Data Flow**
 - **Inputs:** PHP source file paths (from upstream analysis orchestrator)
 - **Outputs:** AST text (S-expression, JSON, or var-dump format) as file references
-- **Connections:** [Analysis Orchestrator] -> [externs-phpparser] -> [AST Consumer]
+- **Connections:** [Analysis Orchestrator] → [externs-phpparser] → [AST Consumer]
 
 **Scope Boundaries**
 - **Owned:** PHP binary resolution (bundled or system), parser binary extraction, process lifecycle management, output caching, platform normalization (OS/arch), integrity verification (CRC32)
