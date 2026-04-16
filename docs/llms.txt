@@ -1,0 +1,21 @@
+# externs-phpparser
+
+> Kotlin/JVM wrapper for PHP-Parser — parses PHP source files into AST text via managed external PHP binary.
+
+`BinPhpParser` is the primary entry point. It extends `AbcBinary`, which handles process execution, timeout, and output caching. Call `execute()` to parse a PHP file. The result is a `BinaryResult` with an exit code and output file.
+
+## Instructions for Agents
+
+- Create `BinPhpParser()` and set `target` before calling `execute()`.
+- Use `executeWith { }` for one-off config overrides — state restores automatically.
+- Check `BinaryResult.code`: `0` = success, `-1` = timeout.
+- Read AST output from `BinaryResult.output` (a `File`).
+- Set `dumpType` to `DumpType.JSON` for machine-readable output, `S_EXPR` for structural, `VAR` for PHP debug.
+- Set `doCacheOutput = true` to skip re-execution for identical commands.
+- Catch `ExternalBinaryNotFoundException` at construction — thrown when no PHP binary is found.
+- Catch `ExternalBinaryArgumentMissException` — thrown when `target` is not set before `execute()`.
+- Never assume a specific PHP binary location. `BinPhpParser` resolves bundled or system PHP automatically.
+
+## API Reference
+
+- [Parser API](llms/parser.md): `BinPhpParser`, `AbcBinary`, `BinaryResult`, utility functions, exceptions.
