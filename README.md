@@ -78,6 +78,20 @@ val result = parser.executeWith {
 
 Agent-consumable documentation index at `docs/llms.txt` (llmstxt.org format).
 
+## Citation
+
+If you use this repository in your research, please cite our paper:
+
+```bibtex
+@inproceedings{xu2026cobra,
+  title     = {CoBrA: Context-, Branch-sensitive Static Analysis for Detecting Taint-style Vulnerabilities in PHP Web Applications},
+  author    = {Xu, Yichao and Kang, Mingqing and Thimmaiah, Neil and Gjomemo, Rigel and Venkatakrishnan, V. N. and Cao, Yinzhi},
+  booktitle = {Proceedings of the 48th IEEE/ACM International Conference on Software Engineering (ICSE)},
+  year      = {2026},
+  address   = {Rio de Janeiro, Brazil}
+}
+```
+
 ## License
 
 GPL-2.0-only
