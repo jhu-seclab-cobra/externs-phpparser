@@ -8,16 +8,7 @@ import kotlin.math.absoluteValue
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
-/**
- * Represents an abstract executable task that can be configured and executed in a specified working directory.
- * This class provides a structured way to define and manage arguments and options for external program execution.
- *
- * @property allArguments A map of all arguments for the executable.
- * @property allOptions A map of all options for the executable.
- * @property workTmpDir The working directory where the executable is run. Defaults to the current directory.
- * @property timeout The maximum time allowed for the execution. Defaults to one minute.
- * @property doCacheOutput Indicates whether the output should be cached, to avoid repeated executions.
- */
+/** Abstract executable that runs in a working directory. */
 @Suppress("UNCHECKED_CAST")
 abstract class AbcBinary {
 
@@ -28,13 +19,7 @@ abstract class AbcBinary {
     var timeout: Duration = Duration.ofMinutes(1)
     var doCacheOutput: Boolean = false
 
-    /**
-     * Provides a delegated property for managing an argument of the executable.
-     *
-     * @param T The type of the argument value.
-     * @property name The name of the argument.
-     * @param default The default value of the argument if not explicitly set.
-     */
+    // Delegated property backed by allArguments.
     protected inner class Argument<T : Any?>(private val name: String, default: T? = null) : ReadWriteProperty<Any, T> {
         init {
             allArguments[name] = default
@@ -49,13 +34,7 @@ abstract class AbcBinary {
         }
     }
 
-    /**
-     * Provides a delegated property for managing an option of the executable.
-     *
-     * @param T The type of the option value.
-     * @property name The name of the option.
-     * @param default The default value of the option if not explicitly set.
-     */
+    // Delegated property backed by allOptions.
     protected inner class Option<T : Any?>(private val name: String, default: T? = null) : ReadWriteProperty<Any, T> {
         init {
             default?.let { allOptions[name] = default }
@@ -67,20 +46,12 @@ abstract class AbcBinary {
         }
     }
 
-    /**
-     * Abstract function that constructs the command array for execution.
-     * Implementations must provide the specific command and arguments as an array of strings.
-     *
-     * @return Array of strings that represents the command and its arguments.
-     */
+    /** Builds the CLI command with all configured arguments and options. */
     abstract fun getCommandArray(): Array<String>
 
     /**
-     * Executes the command constructed by `getCommandArray` and handles output and error redirection.
-     * Manages execution timeout and output caching based on instance configuration.
-     *
-     * @return An ExecuteResult containing the exit code and a reference to the output file.
-     * @throws ExecutableMissException If the executable command is not found.
+     * Runs the configured command and returns the result.
+     * @return exit code and output file.
      */
     open fun execute(): BinaryResult {
         if (workTmpDir.notExists()) workTmpDir.createDirectories()

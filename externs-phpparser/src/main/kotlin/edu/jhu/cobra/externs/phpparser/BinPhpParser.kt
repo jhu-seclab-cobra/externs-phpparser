@@ -6,17 +6,14 @@ import kotlin.io.path.Path
 import kotlin.io.path.div
 
 /**
- * A class responsible for parsing PHP files into Abstract Syntax Trees (ASTs) using the php-parse binary.
- * The binary should be installed and managed preferably through the `PhpComposer`. The parser can generate
- * ASTs in different formats based on the selected dump type.
+ * Parses PHP files into ASTs using the php-parser binary.
  *
- * @param phpBinary The binary file for the PHP interpreter, typically located through a search function.
- * @param parserBinary The binary file for the php-parser, typically located through a search function.
- * @constructor Creates a PhpParser instance with the specified php-parser binary.
+ * @param phpBinary PHP interpreter binary, or null to auto-detect.
+ * @param parserBinary php-parser binary, or null to auto-detect.
  */
 class BinPhpParser(phpBinary: File? = null, parserBinary: File? = null) : AbcBinary() {
 
-    /**An enumeration for the type of output when parsing*/
+    /** Output format for parsed AST. */
     enum class DumpType(val opt: String) {
         S_EXPR("--dump"),
         VAR("--var-dump"),
@@ -85,29 +82,19 @@ class BinPhpParser(phpBinary: File? = null, parserBinary: File? = null) : AbcBin
      */
     var dumpType: DumpType by Argument("dumpType", DumpType.S_EXPR)
 
-    /**
-     * Enables pretty printing of the dump output if set to true.
-     */
+    /** Pretty-print the AST output. */
     var doPrettyPrint: Boolean by Option("--pretty-print", false)
 
-    /**
-     * Enables the resolution of names in the AST if set to true.
-     */
+    /** Resolve names in the AST. */
     var doResolveName: Boolean by Option("--resolve-others", false)
 
-    /**
-     * Includes column information in the output if set to true.
-     */
+    /** Include column information in output. */
     var doWithColInfo: Boolean by Option("--with-column-info", false)
 
-    /**
-     * Includes position information in the output if set to true.
-     */
+    /** Include position information in output. */
     var doWithPositions: Boolean by Option("--with-positions", false)
 
-    /**
-     * Attempts to recover from parse errors if set to true.
-     */
+    /** Recover from parse errors instead of failing. */
     var doWithRecovery: Boolean by Option("--with-recovery", false)
 
     override fun getCommandArray(): Array<String> = buildList {
