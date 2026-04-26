@@ -1,6 +1,6 @@
 # COBRA.EXTERNS.PHPPARSER
 
-> Named for the external binary it wraps — the PHP-Parser library by nikic.
+> Kotlin/JVM wrapper for nikic/PHP-Parser — parses PHP source into ASTs.
 
 Kotlin/JVM wrapper for [PHP-Parser 5.7.0](https://github.com/nikic/PHP-Parser). Parses PHP source files into AST text (S-expression, JSON, or var-dump) by managing a bundled or system PHP binary behind a single `execute()` call.
 
