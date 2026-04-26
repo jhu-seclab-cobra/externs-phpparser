@@ -1,5 +1,39 @@
 package edu.jhu.cobra.externs.phpparser
 
+/**
+ * Tests for utility functions in Utils.kt — binary search, version validation, ZIP extraction, CRC32.
+ *
+ * - `searchBin under directory should find existing file` — finds file at root of search directory.
+ * - `searchBin under directory should find file in subdirectory` — finds file in nested subdirectory.
+ * - `searchBin under directory should return null for missing file` — returns null when no match.
+ * - `searchBin by name should find php on PATH or return null` — system PATH search for php.
+ * - `searchBin by name should return null for nonexistent binary` — returns null for unknown binary.
+ * - `isPhpVersionValid should return true when current version is higher` — higher version passes.
+ * - `isPhpVersionValid should return true when versions are equal and includeEqual is true` — equal passes with flag.
+ * - `isPhpVersionValid should return false when versions are equal and includeEqual is false` — equal fails without flag.
+ * - `isPhpVersionValid should return false when current version is lower` — lower version fails.
+ * - `isPhpVersionValid should handle incomplete version numbers` — 1- and 2-part versions compared correctly.
+ * - `isPhpVersionValid should throw on invalid minRequired format` — invalid format throws.
+ * - `isPhpVersionValid should throw when binary produces no version output` — non-version output throws.
+ * - `isPhpVersionValid should throw when binary does not exist` — missing binary throws.
+ * - `isPhpVersionValid should compare major version correctly` — major-only comparison.
+ * - `isPhpVersionValid should compare minor version when major is equal` — minor comparison.
+ * - `isPhpVersionValid should compare patch version when major and minor are equal` — patch comparison.
+ * - `isPhpVersionValid should handle single-digit minRequired` — single-component version.
+ * - `isPhpVersionValid should throw when binary outputs empty` — empty output throws.
+ * - `isPhpVersionValid should handle two-part minRequired against three-part current` — mixed lengths.
+ * - `extractFileFromZip should extract matching entry` — extracts target file from ZIP.
+ * - `extractFileFromZip should return false when entry not found` — returns false for missing entry.
+ * - `extractFileFromZip should match multiple possible paths` — matches any of multiple candidate paths.
+ * - `extractFileFromZip should normalize backslash paths` — backslash-to-forward-slash normalization.
+ * - `Path crc32ChecksumString should return 8-char hex for existing file` — valid checksum format.
+ * - `Path crc32ChecksumString should return null for nonexistent file` — null for missing file.
+ * - `Path crc32ChecksumString should return null for directory` — null for directory path.
+ * - `Path crc32ChecksumString should be deterministic` — same file produces same checksum.
+ * - `File crc32ChecksumString should delegate to Path extension` — File extension matches Path extension.
+ * - `File crc32ChecksumString should return null for nonexistent file` — null for missing file via File extension.
+ */
+
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File

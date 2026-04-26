@@ -1,5 +1,15 @@
 package edu.jhu.cobra.externs.phpparser
 
+/**
+ * Microbenchmarks for hot-path utility functions — measures throughput and compares alternatives.
+ *
+ * - `P1-1 benchmark extractFileFromZip` — ZIP extraction throughput (1K ops).
+ * - `P1-2 benchmark regex compilation pattern` — cached vs per-call regex compilation.
+ * - `P1-3 benchmark cache key hashing` — joinToString-hashCode vs contentHashCode.
+ * - `P1-4 benchmark PATH split pattern` — eager split+filter vs lazy splitToSequence.
+ * - `P1-5 benchmark command array building` — filterValues+spread vs buildList single-pass.
+ */
+
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream

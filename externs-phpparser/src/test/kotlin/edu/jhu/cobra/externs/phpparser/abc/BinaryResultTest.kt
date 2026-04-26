@@ -1,5 +1,14 @@
 package edu.jhu.cobra.externs.phpparser.abc
 
+/**
+ * Tests for [BinaryResult] — immutable data holder for execution outcomes.
+ *
+ * - `should store code and output file` — constructor stores code and output.
+ * - `should support data class equality` — equal fields produce equal instances.
+ * - `should distinguish different codes` — different codes produce unequal instances.
+ * - `should support copy with modified code` — copy() creates modified instance.
+ */
+
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals

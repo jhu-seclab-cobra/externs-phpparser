@@ -1,5 +1,27 @@
 package edu.jhu.cobra.externs.phpparser.abc
 
+/**
+ * Tests for [AbcBinary] — abstract binary execution framework.
+ *
+ * - `should initialize with default timeout and cache settings` — verifies default timeout (1 min) and cache (off).
+ * - `should throw when reading unset argument` — Argument delegate throws on null read.
+ * - `should set and get argument via delegate` — Argument round-trip through delegate.
+ * - `should set and get option via delegate` — Option round-trip and default value.
+ * - `should build command array with options and arguments` — getCommandArray includes options and args.
+ * - `should execute and return success result` — execute returns code 0 with output file.
+ * - `should return cached output on repeated execution` — second execute returns same cached file.
+ * - `should return code -1 on timeout` — timed-out process returns code -1.
+ * - `should restore config after executeWith` — arguments restored after executeWith.
+ * - `should use temporary config during executeWith` — temporary config used during execution.
+ * - `should return null for option with null default` — Option with no default returns null.
+ * - `should read string option value` — string Option read/write.
+ * - `should skip creating workTmpDir if it already exists` — no error on existing dir.
+ * - `should ignore null when setting nullable option` — null setValue is a no-op.
+ * - `should ignore null when setting argument via allArguments` — null in map causes throw on read.
+ * - `should ignore null when setting nullable argument` — null setValue is a no-op for Argument.
+ * - `executeWith restores state when execute throws` — try-finally restores state on exception.
+ */
+
 import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
 import edu.jhu.cobra.externs.phpparser.executeWith
 import java.io.File
@@ -187,5 +209,26 @@ class AbcBinaryTest {
         assertEquals("value", binary.nullableArg)
         binary.nullableArg = null
         assertEquals("value", binary.nullableArg)
+    }
+
+    @Test
+    fun `executeWith restores state when execute throws`() {
+        val binary = object : AbcBinary() {
+            var arg: String by Argument<String>("arg")
+            var opt: Boolean by Option("--flag", false)
+            override fun getCommandArray(): Array<String> = arrayOf("echo")
+            override fun execute(): BinaryResult = throw RuntimeException("boom")
+        }
+        binary.arg = "original"
+        binary.opt = false
+
+        assertFailsWith<RuntimeException> {
+            binary.executeWith {
+                arg = "temporary"
+                opt = true
+            }
+        }
+        assertEquals("original", binary.arg)
+        assertEquals(false, binary.opt)
     }
 }
