@@ -105,10 +105,10 @@ if (result.code == 0) println(result.output.readText())
 
 **`executeWith(tmpConfig: T.() -> Unit): BinaryResult`**
 - **Responsibility**: Execute a binary with temporary configuration, restoring original state afterward.
-- **Behavior**: Backs up `allArguments` and `allOptions`, applies `tmpConfig` lambda, calls `execute()`, restores backup.
+- **Behavior**: Backs up `allArguments` and `allOptions` into snapshot copies, applies `tmpConfig` lambda, calls `execute()` inside try-finally, restores backup (clear + putAll) in the finally block.
 - **Input**: `tmpConfig` — configuration lambda applied to the receiver `AbcBinary` subtype.
 - **Output**: `BinaryResult` from the temporary execution.
-- **Errors**: Propagates any exception from `execute()`. State is restored even if execution throws (backup/restore wraps execution).
+- **Errors**: Propagates any exception from `execute()`. State is always restored via try-finally — both normal returns and exceptions trigger the finally block.
 
 **`searchBin(under: Path, vararg possibleNames: String): File?`**
 - **Responsibility**: Search a directory tree for a file matching any of the given names.

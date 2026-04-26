@@ -9,6 +9,13 @@
 - **[ParserFactory]** `(new ParserFactory())->createForHostVersion()` — create parser for current PHP version.
 - **[json_encode]** `json_encode($stmts, JSON_PRETTY_PRINT)` — all AST nodes implement `JsonSerializable`; produces JSON with `nodeType` + `attributes` + subnodes.
 - **[Node::getType()]** returns `nodeType` string: class name without `PhpParser\Node\` prefix, `\` → `_`, no trailing `_` for reserved keywords (e.g. `Scalar\Int_` → `Scalar_Int`).
+- **[AbcBinary]** `AbcBinary.execute(): BinaryResult` — spawns process, redirects stdout+stderr to temp file; returns cached result when `doCacheOutput` is true and cache hit.
+- **[BinPhpParser]** `BinPhpParser.getCommandArray(): Array<String>` — builds command via `buildList`: PHP binary, parser PHAR, enabled boolean options, dump type flag, target path.
+- **[Utils]** `T.executeWith(tmpConfig: T.() -> Unit): BinaryResult` — backs up allArguments/allOptions, applies lambda, executes in try-finally; restore clears then puts backup.
+- **[Utils]** `searchBin(name: String): File?` — searches system PATH; appends `.exe`/`.bat` on Windows.
+- **[Utils]** `isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean): Boolean` — spawns `php -v`, compares major.minor.patch numerically; throws `ExternalBinaryInvalidException` on invalid format.
+- **[Utils]** `extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path): Boolean` — iterates ZIP entries with backslash normalization; copies first match to destination.
+- **[Utils]** `Path.crc32ChecksumString: String?` — reads in 16KB chunks, returns 8-char lowercase hex; null if file missing or not regular.
 
 ## Developer Instructions
 

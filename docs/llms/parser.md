@@ -84,7 +84,7 @@ if (result.code == 0) println(result.output.readText())
 ## Gotchas
 
 - `BinPhpParser` resolves binaries eagerly at construction. Construction fails fast if no PHP binary is available.
-- `executeWith { }` restores state even if execution throws.
+- `executeWith { }` restores state via try-finally — both normal returns and exceptions trigger restore.
 - Cache key is `contentHashCode()` of the command array. Changing the source file content without changing the file path does not invalidate the cache.
 - Bundled PHP platforms: macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64. Other platforms need PHP 7.1+ on system PATH.
 - `DumpType.JSON` produces a JSON array of statement nodes. Each node has `nodeType`, `attributes`, and type-specific subnodes.
