@@ -17,22 +17,21 @@ private val PHP_VERSION_OUTPUT_REGEX = Regex("""PHP (\d+\.\d+\.\d+)""")
 private val VERSION_FORMAT_REGEX = Regex("""^\d+(\.\d+){0,2}$""")
 
 /**
- * Temporarily modifies the configuration of this executable, executes it, and then restores the original configuration.
- * This function allows for temporary adjustments to an executable's arguments or options just for the duration of one execution.
+ * Executes with temporary configuration that is rolled back after completion.
  *
- * @param T The specific type of the executable.
- * @param tmpConfig A lambda function to configure temporary changes to the executable.
- * @return [BinaryResult] containing the exit code and output file from the execution.
- * @throws ExecutableMissException if the executable command cannot be executed due to missing file or permissions.
+ * @param tmpConfig configuration applied before execution.
+ * @return the execution result.
  */
 fun <T : AbcBinary> T.executeWith(tmpConfig: T.() -> Unit): BinaryResult {
-    val argsBackup = allArguments.toMap()
-    val optionsBackup = allOptions.toMap()
-    this.tmpConfig()
-    val output = execute()
-    allArguments.putAll(argsBackup)
-    allOptions.putAll(optionsBackup)
-    return output
+    val argsBackup = HashMap(allArguments)
+    val optionsBackup = HashMap(allOptions)
+    try {
+        tmpConfig(this)
+        return execute()
+    } finally {
+        allArguments.clear(); allArguments.putAll(argsBackup)
+        allOptions.clear(); allOptions.putAll(optionsBackup)
+    }
 }
 
 /**
@@ -45,13 +44,7 @@ fun <T : AbcBinary> T.executeWith(tmpConfig: T.() -> Unit): BinaryResult {
 fun searchBin(under: Path, vararg possibleNames: String): File? =
     under.toFile().walkTopDown().firstOrNull { file -> file.isFile && file.name in possibleNames }
 
-/**
- * Searches for an executable file within the system's PATH environment variable directories.
- * Adjusts the executable name for Windows systems by appending '.exe' or '.bat' if necessary.
- *
- * @param name The base name of the executable to search for, without an extension.
- * @return A [File] that represents the executable, or null if it cannot be found.
- */
+/** Searches for an executable by name in the system PATH. */
 fun searchBin(name: String): File? {
     val osName = System.getProperty("os.name").lowercase()
     val isWinBin = osName.contains("win") && !(name.endsWith(".exe") || name.endsWith(".bat"))
@@ -65,14 +58,9 @@ fun searchBin(name: String): File? {
 }
 
 /**
- * Checks if the current PHP version meets the minimum version requirement.
- * Supports incomplete version numbers as input.
+ * Validates that the PHP binary version meets [minRequired].
  *
- * @param binary the binary file of PHP executable
- * @param minRequired Minimum required version, can be complete or incomplete format
- * @param includeEqual Whether to include equality case, true means "greater than or equal to", false means "strictly greater than"
- * @return Whether current version meets the minimum version requirement
- * @throws ExternalBinaryInvalidException if the version format is invalid
+ * @param includeEqual true for >=, false for strict >
  */
 fun isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean = true): Boolean {
     val current = runCatching {
@@ -98,16 +86,7 @@ fun isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean =
     return includeEqual
 }
 
-/**
- * Extracts a specific file from a ZIP archive to a destination path.
- * The function searches for the first matching file in the ZIP archive and extracts it to the specified destination.
- *
- * @param zipInputStream The input stream of the ZIP file to extract from
- * @param toOutPath The destination path where the extracted file will be saved
- * @param fromZipPath One or more paths of the files inside the ZIP to extract
- * @return Boolean indicating whether extraction was successful
- * @throws Exception If any error occurs during extraction
- */
+/** Extracts a file from a ZIP archive to [toOutPath]. */
 fun extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path): Boolean {
     toOutPath.createParentDirectories() // Create parent directories for the output file if they don't exist
     fun String.uniform() = replace(oldChar = '\\', newChar = '/')
@@ -123,14 +102,7 @@ fun extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg from
     }
 }
 
-/**
- * Calculates a CRC32 checksum of a file for integrity verification.
- * The implementation is platform-independent, ensuring consistent results
- * across different operating systems for the same file content.
- *
- * @return A hexadecimal string representation of the CRC32 checksum, or null if the file doesn't exist or isn't a regular file
- * @throws Exception If an error occurs while reading the file
- */
+/** CRC32 checksum as lowercase hex string, or null if the file does not exist. */
 val Path.crc32ChecksumString
     get(): String? {
         // Validate file exists and is a regular file
@@ -148,11 +120,5 @@ val Path.crc32ChecksumString
         return "%08x".format(crc.value)
     }
 
-/**
- * Calculates a CRC32 checksum of a file for integrity verification.
- * This is a convenience extension property for [File] that delegates to [Path.crc32ChecksumString].
- *
- * @return A hexadecimal string representation of the CRC32 checksum, or null if the file doesn't exist or isn't a regular file
- * @throws Exception If an error occurs while reading the file
- */
+/** CRC32 checksum as lowercase hex string, or null if the file does not exist. */
 val File.crc32ChecksumString get() = toPath().crc32ChecksumString
