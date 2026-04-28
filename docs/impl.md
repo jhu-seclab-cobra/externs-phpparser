@@ -27,8 +27,24 @@
 - v5 renamed several nodes (e.g. `LNumber`→`Int_`, `ArrayItem` no longer under `Expr_`). See rename table in [php_parser_ast.md](php_parser_ast.md#v5-node-renames).
 - `Name.name` is now a single string (`"Foo\Bar"`), not `parts` array. Use `getParts()` for array form.
 
+## Design-specific: NameResolver
+
+`--resolve-names` applies `NodeVisitor\NameResolver`. After resolution, two Name nodeTypes appear: `Name_FullyQualified` (resolved) and `Name` (unresolved: self, parent, static, unqualified functions/constants). `Name_Relative` is fully resolved. `Stmt_Namespace` and `Stmt_Use` remain in AST.
+
+Unresolved `Name` nodes require downstream handling:
+- `self`/`parent` → Phase 0 replaces with current/parent class FQN (like Zend's `CG(active_class_entry)`)
+- `static` → cannot resolve statically (runtime late binding)
+- Unqualified functions/constants → Phase 1 checks `namespacedName` attribute first, then global fallback
+
+Full resolution table and AST format details: see [php-parser-guide.md](llms/php-parser-guide.md).
+
+## Design-specific: ConstExprEvaluator
+
+`PhpParser\ConstExprEvaluator` — library class, NOT exposed via CLI. Evaluates constant expressions (`1+2` → `3`, string concat, array literals). Requires custom fallback for `ConstFetch`, `ClassConstFetch`, and magic constants. Not integrated into BinPhpParser CLI pipeline.
+
 ## Design-specific
 
 - `BinPhpParser` uses `DumpType.JSON` (`--json-dump`) to get JSON AST output for downstream parsing.
-- Parser output file (`BinaryResult.output`) contains the raw JSON array of `Stmt` nodes.
+- Parser output file (`BinaryResult.output`) contains raw JSON prepended with `====> File ...` header lines. Downstream parser must skip non-JSON prefix.
 - Error recovery mode (`--with-recovery`): parser inserts `Expr_Error` placeholder nodes instead of throwing.
+- Name resolution (`--resolve-names`): should be enabled for static analysis to get fully qualified names. Unresolved names (self, parent, unqualified functions/constants) require Phase 0 handling.

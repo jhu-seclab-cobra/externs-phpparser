@@ -51,7 +51,7 @@ val result = parser.executeWith {
 
 ## API
 
-**`BinPhpParser`** -- extends `AbcBinary`. Properties: `target`, `dumpType` (`S_EXPR`/`VAR`/`JSON`), `doPrettyPrint`, `doResolveName`, `doWithColInfo`, `doWithPositions`, `doWithRecovery`.
+**`BinPhpParser(phpBinary?, parserBinary?)`** -- extends `AbcBinary`. Properties: `target`, `dumpType` (`S_EXPR`/`VAR`/`JSON`), `doPrettyPrint` (`--pretty-print`), `doResolveName` (`--resolve-names`), `doWithColInfo` (`--with-column-info`), `doWithPositions` (`--with-positions`), `doWithRecovery` (`--with-recovery`).
 
 **`AbcBinary`** -- abstract process runner. `execute(): BinaryResult`, `timeout: Duration` (default 1 min), `doCacheOutput: Boolean`.
 

@@ -1,6 +1,6 @@
 # Parser API
 
-> External PHP binary management and AST parsing.
+> External PHP binary management and AST parsing via nikic/PHP-Parser v5.7.0.
 
 ## Quick Start
 
@@ -18,7 +18,7 @@ if (result.code == 0) println(result.output.readText())
 
 ### BinPhpParser
 
-**`BinPhpParser()`** — Construct parser. Resolves PHP binary (bundled ZIP > system PATH). Raises `ExternalBinaryNotFoundException` if no PHP found.
+**`BinPhpParser(phpBinary: File? = null, parserBinary: File? = null)`** — Construct parser. Resolves PHP binary (bundled ZIP > system PATH). Pass explicit binaries to override. Raises `ExternalBinaryNotFoundException` if no PHP found.
 
 **`target: File`** — PHP source file to parse. Required. Raises `ExternalBinaryArgumentMissException` if unset at `execute()`.
 
@@ -26,7 +26,7 @@ if (result.code == 0) println(result.output.readText())
 
 **`doPrettyPrint: Boolean`** — Enable `--pretty-print`. Default `false`.
 
-**`doResolveName: Boolean`** — Enable `--resolve-others`. Default `false`.
+**`doResolveName: Boolean`** — Enable `--resolve-names`. Default `false`.
 
 **`doWithColInfo: Boolean`** — Enable `--with-column-info`. Default `false`.
 
@@ -57,34 +57,62 @@ if (result.code == 0) println(result.output.readText())
 
 **`searchBin(under: Path, vararg possibleNames: String): File?`** — Search directory tree for file by name.
 
-**`isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean = true): Boolean`** — Check PHP version. Raises `ExternalBinaryInvalidException` on invalid version format.
+**`isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean = true): Boolean`** — Check PHP version. Raises `ExternalBinaryInvalidException` on invalid format.
 
 ### Exceptions
 
-**`ExternalBinaryNotFoundException`** — Binary not found in provided path, bundled resources, or system PATH. Raised during `BinPhpParser` construction.
+**`ExternalBinaryNotFoundException`** — Binary not found. Raised during construction.
 
-**`ExternalBinaryInvalidException`** — Binary exists but fails validation (invalid version format).
+**`ExternalBinaryInvalidException`** — Binary exists but fails validation.
 
-**`ExternalBinaryArgumentMissException`** — Required argument (`target`) read before being set.
+**`ExternalBinaryArgumentMissException`** — Required argument (`target`) not set.
+
+## CLI Options Reference
+
+| Option | Property | CLI Flag | Effect |
+|--------|----------|----------|--------|
+| Dump S-expr | `DumpType.S_EXPR` | `--dump` | Human-readable indented dump (default) |
+| Dump JSON | `DumpType.JSON` | `--json-dump` | JSON array of Stmt nodes with `nodeType` + `attributes` + subnodes |
+| Dump var | `DumpType.VAR` | `--var-dump` | PHP `var_dump()` output for exact structure inspection |
+| Pretty print | `doPrettyPrint` | `--pretty-print` | Regenerate PHP source from AST (round-trip test) |
+| Name resolution | `doResolveName` | `--resolve-names` | Apply `NameResolver` visitor — resolves use/alias/namespace names to FQN |
+| Column info | `doWithColInfo` | `--with-column-info` | Add column numbers to error messages |
+| Positions | `doWithPositions` | `--with-positions` | Add `startFilePos`/`endFilePos` to node dumps |
+| Recovery | `doWithRecovery` | `--with-recovery` | Parse broken PHP — inserts `Expr_Error` placeholder nodes |
+
+## Name Resolution (`--resolve-names`)
+
+Applies `NodeVisitor\NameResolver`. Resolves most names to `Name_FullyQualified`:
+
+| Resolved (Name_FullyQualified) | Not resolved (Name) |
+|-------------------------------|---------------------|
+| `use` imports and aliases | `self` — needs class context |
+| Qualified names (`Models\User`) | `parent` — needs extends context |
+| `namespace\` relative names | `static` — runtime late binding |
+| `extends`/`implements` class refs | Unqualified functions (`strlen`) |
+| `new ClassName()` | Unqualified constants (`PHP_INT_MAX`) |
+
+Unqualified functions/constants get a `namespacedName` attribute with the namespace-prefixed version. `Stmt_Namespace` and `Stmt_Use` nodes remain in AST.
 
 ## Configuration
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `target` | `File` | (none, required) | PHP source file to parse |
-| `dumpType` | `DumpType` | `S_EXPR` | Output format: `S_EXPR`, `VAR`, `JSON` |
-| `doPrettyPrint` | `Boolean` | `false` | Pretty-print AST output |
-| `doResolveName` | `Boolean` | `false` | Resolve names in AST |
-| `doWithColInfo` | `Boolean` | `false` | Include column info |
-| `doWithPositions` | `Boolean` | `false` | Include position info |
+| `target` | `File` | (required) | PHP source file to parse |
+| `dumpType` | `DumpType` | `S_EXPR` | Output format |
+| `doPrettyPrint` | `Boolean` | `false` | Pretty-print AST |
+| `doResolveName` | `Boolean` | `false` | Resolve names to FQN |
+| `doWithColInfo` | `Boolean` | `false` | Column info in errors |
+| `doWithPositions` | `Boolean` | `false` | File positions in dump |
 | `doWithRecovery` | `Boolean` | `false` | Error recovery mode |
 | `timeout` | `Duration` | 1 minute | Max execution time |
-| `doCacheOutput` | `Boolean` | `false` | Cache output for identical commands |
+| `doCacheOutput` | `Boolean` | `false` | Cache by command hash |
 
 ## Gotchas
 
-- `BinPhpParser` resolves binaries eagerly at construction. Construction fails fast if no PHP binary is available.
-- `executeWith { }` restores state via try-finally — both normal returns and exceptions trigger restore.
-- Cache key is `contentHashCode()` of the command array. Changing the source file content without changing the file path does not invalidate the cache.
-- Bundled PHP platforms: macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64. Other platforms need PHP 7.1+ on system PATH.
-- `DumpType.JSON` produces a JSON array of statement nodes. Each node has `nodeType`, `attributes`, and type-specific subnodes.
+- Construction resolves binaries eagerly. Fails fast if no PHP available.
+- `executeWith { }` restores state via try-finally.
+- Cache key is `contentHashCode()` of command array. Changing file content without changing path does not invalidate.
+- Bundled PHP: macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64.
+- `DumpType.JSON` output is prefixed with `====> File ...` header lines. Skip non-JSON prefix before parsing.
+- `--resolve-names` does not resolve `self`/`parent`/`static` or unqualified function/constant names.

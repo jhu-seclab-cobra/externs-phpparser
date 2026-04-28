@@ -11,6 +11,8 @@
 - Check `BinaryResult.code`: `0` = success, `-1` = timeout.
 - Read AST output from `BinaryResult.output` (a `File`).
 - Set `dumpType` to `DumpType.JSON` for machine-readable output, `S_EXPR` for structural, `VAR` for PHP debug.
+- Set `doResolveName = true` for static analysis — resolves names to `Name_FullyQualified`.
+- After resolution, `Name` nodes (`self`, `parent`, unqualified functions) need downstream handling.
 - Set `doCacheOutput = true` to skip re-execution for identical commands.
 - Catch `ExternalBinaryNotFoundException` at construction — thrown when no PHP binary is found.
 - Catch `ExternalBinaryArgumentMissException` — thrown when `target` is not set before `execute()`.
@@ -19,3 +21,4 @@
 ## API Reference
 
 - [Parser API](llms/parser.md): `BinPhpParser`, `AbcBinary`, `BinaryResult`, utility functions, exceptions.
+- [PHP-Parser Guide](llms/php-parser-guide.md): Parsing pipeline, JSON format, name resolution, AST node types, error handling.
