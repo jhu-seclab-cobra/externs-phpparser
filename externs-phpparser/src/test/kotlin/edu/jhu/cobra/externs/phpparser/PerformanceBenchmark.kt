@@ -123,7 +123,7 @@ class PerformanceBenchmark {
     fun `P1-5 benchmark command array building`() {
         val options = mutableMapOf<String, Any>(
             "--pretty-print" to false,
-            "--resolve-others" to false,
+            "--resolve-names" to false,
             "--with-column-info" to false,
             "--with-positions" to true,
             "--with-recovery" to false

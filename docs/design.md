@@ -61,7 +61,7 @@ if (result.code == 0) println(result.output.readText())
 - `target: File` — (Argument) Target PHP source file to parse. Required before `execute()`.
 - `dumpType: DumpType` — (Argument) AST output format. Defaults to `S_EXPR`.
 - `doPrettyPrint: Boolean` — (Option `--pretty-print`) Defaults to false.
-- `doResolveName: Boolean` — (Option `--resolve-others`) Defaults to false.
+- `doResolveName: Boolean` — (Option `--resolve-names`) Applies `NodeVisitor\NameResolver`. Defaults to false.
 - `doWithColInfo: Boolean` — (Option `--with-column-info`) Defaults to false.
 - `doWithPositions: Boolean` — (Option `--with-positions`) Defaults to false.
 - `doWithRecovery: Boolean` — (Option `--with-recovery`) Defaults to false.

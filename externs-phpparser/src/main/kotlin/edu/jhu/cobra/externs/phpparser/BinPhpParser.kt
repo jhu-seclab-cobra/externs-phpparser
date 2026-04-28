@@ -85,8 +85,8 @@ class BinPhpParser(phpBinary: File? = null, parserBinary: File? = null) : AbcBin
     /** Pretty-print the AST output. */
     var doPrettyPrint: Boolean by Option("--pretty-print", false)
 
-    /** Resolve names in the AST. */
-    var doResolveName: Boolean by Option("--resolve-others", false)
+    /** Resolve names in the AST using NodeVisitor\NameResolver. */
+    var doResolveName: Boolean by Option("--resolve-names", false)
 
     /** Include column information in output. */
     var doWithColInfo: Boolean by Option("--with-column-info", false)
