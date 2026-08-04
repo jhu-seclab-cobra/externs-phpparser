@@ -63,7 +63,7 @@ externs-phpparser is the PHP parsing adapter in the Cobra analysis pipeline, tra
 1. **Binary Resolution** - On construction, resolve PHP interpreter and parser PHAR. Check user-provided path, then attempt bundled extraction with CRC32 validation, then fall back to system PATH search.
 2. **Command Construction** - Assemble the command array: PHP binary path, parser PHAR path, enabled boolean options, dump type flag, target file path.
 3. **Cache Check** - If caching is enabled, compute content hash of command array. If a cached output file exists, return it immediately.
-4. **Process Spawn** - Start the PHP process with stdout/stderr redirected to a temp file. Wait up to the configured timeout.
+4. **Process Spawn** - Start the PHP process with stdout/stderr redirected to a temp file. Wait up to the fixed liveness backstop.
 5. **Result Capture** - On completion, wrap exit code and output file into a `BinaryResult`. On timeout, destroy the process and return a sentinel result.
 
 ## 4. Scenarios
@@ -72,6 +72,6 @@ externs-phpparser is the PHP parsing adapter in the Cobra analysis pipeline, tra
 
 - **Boundary:** The bundled PHP binary ZIP is missing from classpath resources, and no system PHP >= 7.1 exists on PATH. Binary resolution throws `ExternalBinaryNotFoundException` immediately on construction — fail-fast, no silent fallback.
 
-- **Boundary:** The parser process hangs (infinite loop in PHP code). After the configured timeout (default 1 minute), the process is destroyed and a `BinaryResult` with code -1 and a "timed out" message file is returned.
+- **Boundary:** The parser process hangs (infinite loop in PHP code). After the fixed 1-minute liveness backstop, the process is destroyed and a `BinaryResult` with code -1 and a "timed out" message file is returned.
 
 - **Interaction:** The orchestrator uses `executeWith` to temporarily override options (e.g., enable `--json-dump` for one call). After execution, all arguments and options are restored to their previous values, preserving the parser's default configuration for subsequent calls.

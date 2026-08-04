@@ -20,5 +20,5 @@
 
 ## API Reference
 
-- [Parser API](llms/parser.md): `BinPhpParser`, `AbcBinary`, `BinaryResult`, utility functions, exceptions.
+- [Parser API](llms/parser.md): `BinPhpParser`, `AbcBinary`, `BinaryResult`, top-level functions, exceptions.
 - [PHP-Parser Guide](llms/php-parser-guide.md): Parsing pipeline, JSON format, name resolution, AST node types, error handling.

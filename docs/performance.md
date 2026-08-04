@@ -37,31 +37,31 @@ Run: `./gradlew performanceTest --rerun`
 
 | ID | Title | File(s) | Impact |
 |----|-------|---------|--------|
-| P1-1 | Remove debug println in extractFileFromZip | Utils.kt | extractFileFromZip: 152,618 -> 99,786 ns/op (-34.6%) |
-| P1-2 | Compile Regex as top-level constants | Utils.kt | regex path: 495.0 -> 157.1 ns/op (-68.3%, 3.2x) |
-| P1-3 | Use contentHashCode for cache key | AbcBinary.kt | hash: 179.7 -> 24.1 ns/op (-86.6%, 7.5x) |
-| P1-4 | Use Sequence for PATH search | Utils.kt | PATH search: 51,032 -> 1,076 ns/op (-97.9%, 47.4x) |
+| P1-1 | Remove debug println in extractFileFromZip | ArchiveExtraction.kt | extractFileFromZip: 152,618 -> 99,786 ns/op (-34.6%) |
+| P1-2 | Compile Regex as top-level constants | PhpVersionValidation.kt | regex path: 495.0 -> 157.1 ns/op (-68.3%, 3.2x) |
+| P1-3 | Use contentHashCode for cache key | binary/AbcBinary.kt | hash: 179.7 -> 24.1 ns/op (-86.6%, 7.5x) |
+| P1-4 | Use Sequence for PATH search | ExecutableSearch.kt | PATH search: 51,032 -> 1,076 ns/op (-97.9%, 47.4x) |
 | P1-5 | Reduce intermediate collections in getCommandArray | BinPhpParser.kt | cmd array: 161.8 -> 97.0 ns/op (-40.1%, 1.7x) |
 
 ## Completed Optimizations
 
 ### P1-1: Remove debug `println` in `extractFileFromZip` (Bug fix) — KEEP
-- **File**: `Utils.kt`
+- **File**: `ArchiveExtraction.kt`
 - **Change**: Removed `println("Checking entry: ${inZipEntry?.name}")` from ZIP extraction loop
 - **Measured**: extractFileFromZip 152,618 -> 99,786 ns/op (**-34.6%**), no cross-regression
 
 ### P1-2: Compile `Regex` as top-level constants in `isPhpVersionValid` — KEEP
-- **File**: `Utils.kt`
+- **File**: `PhpVersionValidation.kt`
 - **Change**: Extracted `Regex("""PHP (\d+\.\d+\.\d+)""")` and `Regex("""^\d+(\.\d+){0,2}$""")` to file-level `private val`
 - **Measured**: regex path 495.0 -> 157.1 ns/op (**-68.3%, 3.2x faster**), no cross-regression
 
 ### P1-3: Use `contentHashCode()` for cache key in `execute()` — KEEP
-- **File**: `AbcBinary.kt`
+- **File**: `binary/AbcBinary.kt`
 - **Change**: Replaced `cmdArray.joinToString(" ").hashCode()` with `cmdArray.contentHashCode()`
 - **Measured**: hash computation 179.7 -> 24.1 ns/op (**-86.6%, 7.5x faster**), no cross-regression
 
 ### P1-4: Use `Sequence` for PATH search in `searchBin` — KEEP
-- **File**: `Utils.kt`
+- **File**: `ExecutableSearch.kt`
 - **Change**: Replaced `split().map().filter().asSequence()` with `splitToSequence().map().filter()` — lazy from the start
 - **Measured**: PATH search pattern 51,032 -> 1,076 ns/op (**-97.9%, 47.4x faster**), no cross-regression
 

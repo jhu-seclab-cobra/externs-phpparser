@@ -8,7 +8,7 @@
 - **Exceptions**: `ExternalBinaryNotFoundException` extends `RuntimeException`, `ExternalBinaryInvalidException` extends `RuntimeException`, `ExternalBinaryArgumentMissException` extends `Exception`
 - **Dependency roles**: Data holders: `BinaryResult`, `BinPhpParser.DumpType`. Orchestrator: `BinPhpParser`. Helper: `AbcBinary` (process lifecycle framework, inputs by subclass override).
 
-`AbcBinary` defines the process execution framework: argument/option management via delegated properties, command array construction (abstract), process spawning with timeout, and output caching. `BinPhpParser` extends it with PHP-specific binary resolution (bundled extraction with CRC32 or system PATH search), platform normalization, and parser CLI flag assembly. `BinaryResult` is a passive data holder pairing exit code with output file reference. Utility functions in `Utils.kt` provide binary search, version validation, ZIP extraction, and CRC32 checksum computation as stateless helpers.
+`AbcBinary` and `BinaryResult` live in the `binary` subpackage; everything else lives in the root package `edu.jhu.cobra.externs.phpparser`. `AbcBinary` defines the process execution framework: argument/option management via delegated properties, command array construction (abstract), process spawning bounded by a fixed liveness backstop, and output caching. `BinPhpParser` extends it with PHP-specific binary resolution (bundled extraction with CRC32 or system PATH search), platform normalization, and parser CLI flag assembly. `BinaryResult` is a passive data holder pairing exit code with output file reference. Stateless top-level helpers are split by responsibility: `ExecutableSearch.kt` (binary lookup), `PhpVersionValidation.kt` (interpreter version probing and comparison), `ArchiveExtraction.kt` (ZIP extraction and CRC32 checksums), and `ScopedExecution.kt` (execution under temporary configuration).
 
 ## Class / Type Specifications
 
@@ -17,11 +17,12 @@
 **Responsibility**: Abstract framework for configuring, executing, and caching external binary processes.
 
 **State/Fields**:
-- `workTmpDir: Path` — Working directory for process execution and cache files. Defaults to `{tmpdir}/cobra/binaries/{className}`.
-- `allArguments: MutableMap<String, Any?>` — Registry of named arguments managed by `Argument` delegates.
-- `allOptions: MutableMap<String, Any>` — Registry of named options managed by `Option` delegates.
-- `timeout: Duration` — Maximum execution time before process destruction. Defaults to 1 minute.
-- `doCacheOutput: Boolean` — Whether to reuse cached output for identical commands. Defaults to false.
+- `workTmpDir: Path` (public) — Working directory for process execution and cache files. Defaults to `{tmpdir}/cobra/binaries/{className}`.
+- `allArguments: MutableMap<String, Any?>` (internal) — Registry of named arguments managed by `Argument` delegates. Mutated outside the class only through `withConfigurationSnapshot`.
+- `allOptions: MutableMap<String, Any>` (internal) — Registry of named options managed by `Option` delegates. Mutated outside the class only through `withConfigurationSnapshot`.
+- `executionTimeoutMillis: Long` (internal, open) — Liveness backstop before process destruction. Fixed at the `EXECUTION_TIMEOUT_MILLIS` constant (1 minute); open only so test doubles can shorten waits. Never per-run configuration (`resource-bounds.md`).
+- `terminationGraceMillis: Long` (internal, open) — Grace period before forcible termination. Fixed at the `TERMINATION_GRACE_MILLIS` constant (5 s); open only for test doubles.
+- `doCacheOutput: Boolean` (public) — Whether to reuse cached output for identical commands. Defaults to false.
 
 **Inner Classes**:
 - `Argument<T>` — `ReadWriteProperty` delegate that reads/writes `allArguments[name]`. Throws `ExternalBinaryArgumentMissException` on read if value is null.
@@ -36,10 +37,16 @@
 - **Errors**: Implementation-specific.
 
 `execute(): BinaryResult` (open)
-- **Behavior**: Creates working directory if absent. Computes cache key via `contentHashCode()` of command array. If caching enabled and cache file exists, returns cached result. Otherwise spawns process, redirects stdout+stderr to temp file, waits up to `timeout`. On timeout, destroys process.
+- **Behavior**: Creates working directory if absent. Computes cache key via SHA-1 over the NUL-joined command array. If caching enabled and cache file exists, returns cached result. Otherwise spawns process, redirects stdout+stderr to temp file, waits up to the execution backstop. On timeout, destroys the process (graceful, then forcible after the termination grace) and reaps it before returning.
 - **Input**: None (reads from internal state configured via delegates).
 - **Output**: `BinaryResult` — code 0 on success, -1 on timeout.
 - **Errors**: OS-level exceptions if binary not found or not executable.
+
+`withConfigurationSnapshot(block: () -> R): R` (internal)
+- **Behavior**: Snapshots `allArguments` and `allOptions`, runs `block`, and restores both registries in a finally block — on normal completion and on exception.
+- **Input**: `block` — computation run under mutable configuration.
+- **Output**: The value returned by `block`.
+- **Errors**: Propagates any exception from `block`; state is restored regardless.
 
 **Example usage**:
 ```kotlin
@@ -101,19 +108,21 @@ if (result.code == 0) println(result.output.readText())
 
 ## Function Specifications
 
-### Utils.kt — Global Functions
+### ScopedExecution.kt
 
 **`executeWith(tmpConfig: T.() -> Unit): BinaryResult`**
 - **Responsibility**: Execute a binary with temporary configuration, restoring original state afterward.
-- **Behavior**: Backs up `allArguments` and `allOptions` into snapshot copies, applies `tmpConfig` lambda, calls `execute()` inside try-finally, restores backup (clear + putAll) in the finally block.
+- **Behavior**: Delegates to `AbcBinary.withConfigurationSnapshot`: applies `tmpConfig` and calls `execute()` under the snapshot; the snapshot restores both registries afterward.
 - **Input**: `tmpConfig` — configuration lambda applied to the receiver `AbcBinary` subtype.
 - **Output**: `BinaryResult` from the temporary execution.
-- **Errors**: Propagates any exception from `execute()`. State is always restored via try-finally — both normal returns and exceptions trigger the finally block.
+- **Errors**: Propagates any exception from `execute()`. State is always restored — both normal returns and exceptions.
+
+### ExecutableSearch.kt
 
 **`searchBin(under: Path, vararg possibleNames: String): File?`**
-- **Responsibility**: Search a directory tree for a file matching any of the given names.
-- **Behavior**: Walks directory top-down, returns first file whose name matches.
-- **Input**: `under` — root directory; `possibleNames` — candidate file names.
+- **Responsibility**: Look up an executable as a direct child of a directory.
+- **Behavior**: Checks each candidate name as a direct child of `under`, returns the first that is an executable regular file.
+- **Input**: `under` — directory; `possibleNames` — candidate file names.
 - **Output**: First matching `File`, or null.
 - **Errors**: None thrown; returns null on no match.
 
@@ -124,19 +133,30 @@ if (result.code == 0) println(result.output.readText())
 - **Output**: First matching `File`, or null.
 - **Errors**: None thrown; returns null if PATH unavailable or no match.
 
+### PhpVersionValidation.kt
+
+**`readPhpVersion(binary: File, probeTimeoutSeconds: Long): String`** (internal)
+- **Responsibility**: Read the version reported by `php -v`.
+- **Behavior**: Spawns `binary -v`, waits up to the probe backstop (`VERSION_PROBE_TIMEOUT_SECONDS`, 10 s), extracts the version via compiled regex. A hung probe is force-killed and reaped. Internal so tests can shorten the backstop; production callers use the default.
+- **Input**: `binary` — PHP executable; `probeTimeoutSeconds` — liveness backstop, defaults to the constant.
+- **Output**: Version string `major.minor.patch`.
+- **Errors**: Throws `ExternalBinaryInvalidException` when the binary cannot run, the probe times out, or the output carries no version.
+
 **`isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean): Boolean`**
 - **Responsibility**: Check whether a PHP binary meets a minimum version requirement.
-- **Behavior**: Spawns `php -v`, extracts version via compiled regex, compares major.minor.patch components numerically.
+- **Behavior**: Validates `minRequired` format, reads the current version via `readPhpVersion`, compares major.minor.patch components numerically.
 - **Input**: `binary` — PHP executable; `minRequired` — version string (1-3 components); `includeEqual` — whether equality satisfies the check (default true).
 - **Output**: `true` if current version meets requirement.
-- **Errors**: Throws `ExternalBinaryInvalidException` if either version string has invalid format.
+- **Errors**: Throws `ExternalBinaryInvalidException` if `minRequired` has invalid format, or propagated from `readPhpVersion`.
 
-**`extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path): Boolean`**
-- **Responsibility**: Extract a single target file from a ZIP archive.
-- **Behavior**: Creates parent directories, iterates ZIP entries with path normalization (backslash to forward slash), copies first matching entry to destination.
+### ArchiveExtraction.kt
+
+**`extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path)`**
+- **Responsibility**: Extract a single target file from a ZIP archive with atomic publication.
+- **Behavior**: Creates parent directories, iterates ZIP entries with path normalization (backslash to forward slash), stages the first matching entry to a unique sibling temp file, then moves it over the destination via `ATOMIC_MOVE` (falling back to `REPLACE_EXISTING` when the filesystem lacks atomic-move support). Concurrent readers only ever observe an absent or complete destination, never a partial one. The staging file is removed on every exit path.
 - **Input**: `zipInputStream` — ZIP stream; `toOutPath` — extraction destination; `fromZipPath` — candidate entry paths within ZIP.
-- **Output**: `true` if a matching entry was found and extracted.
-- **Errors**: Propagates I/O exceptions from stream operations.
+- **Output**: None (Unit); the destination file exists on return.
+- **Errors**: Throws `ExternalBinaryNotFoundException` when no entry matches. Propagates I/O exceptions from stream operations.
 
 **`Path.crc32ChecksumString: String?`** (extension property)
 - **Responsibility**: Compute CRC32 checksum of a file for integrity verification.
@@ -155,7 +175,7 @@ if (result.code == 0) println(result.output.readText())
 | Exception | Superclass | Raised When |
 |-----------|-----------|-------------|
 | `ExternalBinaryNotFoundException` | `RuntimeException` | Binary resolution fails — not found in provided path, bundled resources, or system PATH. Raised during `BinPhpParser` construction. |
-| `ExternalBinaryInvalidException` | `RuntimeException` | A binary exists but fails validation — invalid version format in `isPhpVersionValid`. |
+| `ExternalBinaryInvalidException` | `RuntimeException` | A binary exists but fails validation — invalid version format, unrunnable or hung version probe, unparsable version output, or an extracted interpreter that cannot be marked executable. |
 | `ExternalBinaryArgumentMissException` | `Exception` | A required `Argument` delegate is read before being set. Raised when accessing `target` without assignment. |
 
 ---
@@ -175,4 +195,8 @@ if (result.code == 0) println(result.output.readText())
 
 ### AbcBinary.execute
 - `workTmpDir` is created if absent (no validation — delegates to filesystem).
-- Timeout enforced: process destroyed after `timeout` duration, returns code -1.
+- Liveness backstop enforced: process destroyed after the fixed `EXECUTION_TIMEOUT_MILLIS` backstop, returns code -1. The backstop is a constant, never per-run configuration.
+
+### BinPhpParser (bundled extraction)
+- An extracted interpreter that cannot be marked executable throws `ExternalBinaryInvalidException`.
+- A pre-existing extraction whose CRC32 matches the preloaded checksum is reused; extraction is skipped.

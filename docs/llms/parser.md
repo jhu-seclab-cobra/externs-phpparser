@@ -38,7 +38,7 @@ if (result.code == 0) println(result.output.readText())
 
 **`execute(): BinaryResult`** — Run the external binary. Returns cached result if `doCacheOutput` is `true` and cache hit.
 
-**`timeout: Duration`** — Max execution time. Default 1 minute. Process destroyed on timeout.
+Execution is bounded by a fixed internal 1-minute backstop. Process destroyed on timeout. Not configurable.
 
 **`doCacheOutput: Boolean`** — Cache output by command content hash. Default `false`.
 
@@ -49,13 +49,13 @@ if (result.code == 0) println(result.output.readText())
 - `code`: `0` = success, `-1` = timeout.
 - `output`: `File` containing stdout+stderr.
 
-### Utility Functions
+### Top-Level Functions
 
 **`executeWith(tmpConfig: T.() -> Unit): BinaryResult`** — Execute with temporary config. Backs up and restores all arguments/options.
 
 **`searchBin(name: String): File?`** — Search system PATH for executable. Returns first match or `null`.
 
-**`searchBin(under: Path, vararg possibleNames: String): File?`** — Search directory tree for file by name.
+**`searchBin(under: Path, vararg possibleNames: String): File?`** — Look up an executable as a direct child of a directory.
 
 **`isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean = true): Boolean`** — Check PHP version. Raises `ExternalBinaryInvalidException` on invalid format.
 
@@ -105,14 +105,13 @@ Unqualified functions/constants get a `namespacedName` attribute with the namesp
 | `doWithColInfo` | `Boolean` | `false` | Column info in errors |
 | `doWithPositions` | `Boolean` | `false` | File positions in dump |
 | `doWithRecovery` | `Boolean` | `false` | Error recovery mode |
-| `timeout` | `Duration` | 1 minute | Max execution time |
 | `doCacheOutput` | `Boolean` | `false` | Cache by command hash |
 
 ## Gotchas
 
 - Construction resolves binaries eagerly. Fails fast if no PHP available.
 - `executeWith { }` restores state via try-finally.
-- Cache key is `contentHashCode()` of command array. Changing file content without changing path does not invalidate.
+- Cache key is a hash of the command array. Changing file content without changing path does not invalidate.
 - Bundled PHP: macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64.
 - `DumpType.JSON` output is prefixed with `====> File ...` header lines. Skip non-JSON prefix before parsing.
 - `--resolve-names` does not resolve `self`/`parent`/`static` or unqualified function/constant names.
