@@ -3,8 +3,9 @@ package edu.jhu.cobra.externs.phpparser
 /**
  * Tests for utility functions in Utils.kt — binary search, version validation, ZIP extraction, CRC32.
  *
- * - `searchBin under directory should find existing file` — finds file at root of search directory.
- * - `searchBin under directory should find file in subdirectory` — finds file in nested subdirectory.
+ * - `searchBin under directory should find executable direct child` — finds executable at root of directory.
+ * - `searchBin under directory should not find file in subdirectory` — nested files are never PATH hits.
+ * - `searchBin under directory should ignore non-executable file` — executable bit is required.
  * - `searchBin under directory should return null for missing file` — returns null when no match.
  * - `searchBin by name should find php on PATH or return null` — system PATH search for php.
  * - `searchBin by name should return null for nonexistent binary` — returns null for unknown binary.
@@ -17,6 +18,8 @@ package edu.jhu.cobra.externs.phpparser
  * - `isPhpVersionValid should throw when binary produces no version output` — non-version output throws.
  * - `isPhpVersionValid should throw when binary does not exist` — missing binary throws.
  * - `isPhpVersionValid should attach IOException cause when binary cannot run` — process-start failure keeps cause.
+ * - `isPhpVersionValid should report timeout when version probe hangs` — a hung probe throws a distinct
+ *   "version probe timed out" reason instead of misreporting unparsable output.
  * - `isPhpVersionValid should compare major version correctly` — major-only comparison.
  * - `isPhpVersionValid should compare minor version when major is equal` — minor comparison.
  * - `isPhpVersionValid should compare patch version when major and minor are equal` — patch comparison.
@@ -35,15 +38,16 @@ package edu.jhu.cobra.externs.phpparser
  * - `File crc32ChecksumString should return null for nonexistent file` — null for missing file via File extension.
  */
 
+import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
-import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -52,38 +56,46 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class UtilsTest {
+internal class UtilsTest {
+    @TempDir
+    lateinit var tempDir: Path
+
     // --- searchBin(under, possibleNames) ---
 
     @Test
-    fun `searchBin under directory should find existing file`() {
-        val tempDir = createTempDirectory("searchBin")
-        val target = tempDir.resolve("mybin").toFile().apply { createNewFile() }
+    fun `searchBin under directory should find executable direct child`() {
+        val target =
+            tempDir.resolve("mybin").toFile().apply {
+                createNewFile()
+                setExecutable(true)
+            }
         val found = searchBin(tempDir, "mybin")
         assertNotNull(found)
         assertEquals(target.absolutePath, found.absolutePath)
-        target.delete()
-        tempDir.toFile().delete()
     }
 
     @Test
-    fun `searchBin under directory should find file in subdirectory`() {
-        val tempDir = createTempDirectory("searchBinSub")
-        val subDir = (tempDir.resolve("sub")).apply { createDirectories() }
-        val target = subDir.resolve("deep.bin").toFile().apply { createNewFile() }
-        val found = searchBin(tempDir, "deep.bin")
-        assertNotNull(found)
-        assertEquals(target.absolutePath, found.absolutePath)
-        target.delete()
-        subDir.toFile().delete()
-        tempDir.toFile().delete()
+    fun `searchBin under directory should not find file in subdirectory`() {
+        val subDir = tempDir.resolve("sub").apply { createDirectories() }
+        subDir.resolve("deep.bin").toFile().apply {
+            createNewFile()
+            setExecutable(true)
+        }
+        assertNull(searchBin(tempDir, "deep.bin"), "a nested file must never be treated as a PATH entry hit")
+    }
+
+    @Test
+    fun `searchBin under directory should ignore non-executable file`() {
+        tempDir.resolve("plainfile").toFile().apply {
+            createNewFile()
+            setExecutable(false)
+        }
+        assertNull(searchBin(tempDir, "plainfile"))
     }
 
     @Test
     fun `searchBin under directory should return null for missing file`() {
-        val tempDir = createTempDirectory("searchBinMiss")
         assertNull(searchBin(tempDir, "nonexistent"))
-        tempDir.toFile().delete()
     }
 
     // --- searchBin(name) on PATH ---
@@ -106,21 +118,18 @@ class UtilsTest {
         val mock = createMockPhpBinary("8.2.5")
         assertTrue(isPhpVersionValid(mock, "7.1"))
         assertTrue(isPhpVersionValid(mock, "8.2.4"))
-        mock.delete()
     }
 
     @Test
     fun `isPhpVersionValid should return true when versions are equal and includeEqual is true`() {
         val mock = createMockPhpBinary("7.4.10")
         assertTrue(isPhpVersionValid(mock, "7.4.10", includeEqual = true))
-        mock.delete()
     }
 
     @Test
     fun `isPhpVersionValid should return false when versions are equal and includeEqual is false`() {
         val mock = createMockPhpBinary("7.4.10")
         assertFalse(isPhpVersionValid(mock, "7.4.10", includeEqual = false))
-        mock.delete()
     }
 
     @Test
@@ -129,7 +138,6 @@ class UtilsTest {
         assertFalse(isPhpVersionValid(mock, "8.0"))
         assertFalse(isPhpVersionValid(mock, "7.5"))
         assertFalse(isPhpVersionValid(mock, "7.4.11"))
-        mock.delete()
     }
 
     @Test
@@ -138,7 +146,6 @@ class UtilsTest {
         assertTrue(isPhpVersionValid(mock, "8"))
         assertTrue(isPhpVersionValid(mock, "8.1"))
         assertFalse(isPhpVersionValid(mock, "8.2"))
-        mock.delete()
     }
 
     @Test
@@ -147,20 +154,14 @@ class UtilsTest {
         assertFailsWith<ExternalBinaryInvalidException> {
             isPhpVersionValid(mock, "invalid.version")
         }
-        mock.delete()
     }
 
     @Test
     fun `isPhpVersionValid should throw when binary produces no version output`() {
-        val mock =
-            File.createTempFile("mock-php-bad", ".sh").apply {
-                writeText("#!/bin/sh\necho 'not a version'")
-                setExecutable(true)
-            }
+        val mock = createMockScript("mock-php-bad.sh", "#!/bin/sh\necho 'not a version'")
         assertFailsWith<ExternalBinaryInvalidException> {
             isPhpVersionValid(mock, "7.1")
         }
-        mock.delete()
     }
 
     @Test
@@ -182,11 +183,24 @@ class UtilsTest {
     }
 
     @Test
+    fun `isPhpVersionValid should report timeout when version probe hangs`() {
+        // Sleeps well past the 10s probe backstop; the probe must kill it and name the timeout.
+        val mock = createMockScript("mock-php-hang.sh", "#!/bin/sh\nsleep 30\necho 'PHP 8.0.0 (cli)'")
+        val exception =
+            assertFailsWith<ExternalBinaryInvalidException> {
+                isPhpVersionValid(mock, "7.1")
+            }
+        assertTrue(
+            "version probe timed out" in exception.message.orEmpty(),
+            "hung probe must report a timeout, not unparsable output: ${exception.message}",
+        )
+    }
+
+    @Test
     fun `isPhpVersionValid should compare major version correctly`() {
         val mock = createMockPhpBinary("8.0.0")
         assertTrue(isPhpVersionValid(mock, "7.0.0"))
         assertFalse(isPhpVersionValid(mock, "9.0.0"))
-        mock.delete()
     }
 
     @Test
@@ -194,7 +208,6 @@ class UtilsTest {
         val mock = createMockPhpBinary("8.2.0")
         assertTrue(isPhpVersionValid(mock, "8.1.0"))
         assertFalse(isPhpVersionValid(mock, "8.3.0"))
-        mock.delete()
     }
 
     @Test
@@ -204,7 +217,6 @@ class UtilsTest {
         assertFalse(isPhpVersionValid(mock, "8.2.6"))
         assertTrue(isPhpVersionValid(mock, "8.2.5", includeEqual = true))
         assertFalse(isPhpVersionValid(mock, "8.2.5", includeEqual = false))
-        mock.delete()
     }
 
     @Test
@@ -213,20 +225,14 @@ class UtilsTest {
         assertTrue(isPhpVersionValid(mock, "7"))
         assertTrue(isPhpVersionValid(mock, "8"))
         assertFalse(isPhpVersionValid(mock, "9"))
-        mock.delete()
     }
 
     @Test
     fun `isPhpVersionValid should throw when binary outputs empty`() {
-        val mock =
-            File.createTempFile("mock-php-empty", ".sh").apply {
-                writeText("#!/bin/sh\n")
-                setExecutable(true)
-            }
+        val mock = createMockScript("mock-php-empty.sh", "#!/bin/sh\n")
         assertFailsWith<ExternalBinaryInvalidException> {
             isPhpVersionValid(mock, "7.1")
         }
-        mock.delete()
     }
 
     @Test
@@ -234,7 +240,6 @@ class UtilsTest {
         val mock = createMockPhpBinary("8.2.0")
         assertTrue(isPhpVersionValid(mock, "8.2"))
         assertFalse(isPhpVersionValid(mock, "8.2", includeEqual = false))
-        mock.delete()
     }
 
     // --- extractFileFromZip ---
@@ -242,30 +247,28 @@ class UtilsTest {
     @Test
     fun `extractFileFromZip should extract matching entry`() {
         val zipBytes = createZipInMemory("data/hello.txt" to "hello world")
-        val outPath = Files.createTempFile("extract", ".txt")
+        val outPath = tempDir.resolve("extract.txt")
 
         extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("data/hello.txt"))
         assertEquals("hello world", outPath.toFile().readText())
-        outPath.toFile().delete()
     }
 
     @Test
     fun `extractFileFromZip should throw when entry not found`() {
         val zipBytes = createZipInMemory("a.txt" to "content")
-        val outPath = Files.createTempFile("extract", ".txt")
+        val outPath = tempDir.resolve("extract.txt")
 
         val exception =
             assertFailsWith<ExternalBinaryNotFoundException> {
                 extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("missing.txt"))
             }
         assertTrue("missing.txt" in exception.message.orEmpty(), "message should name the target: ${exception.message}")
-        outPath.toFile().delete()
     }
 
     @Test
     fun `extractFileFromZip should match multiple possible paths`() {
         val zipBytes = createZipInMemory("linux/bin" to "elf-data")
-        val outPath = Files.createTempFile("extract", ".bin")
+        val outPath = tempDir.resolve("extract.bin")
 
         extractFileFromZip(
             ByteArrayInputStream(zipBytes),
@@ -274,30 +277,27 @@ class UtilsTest {
             Path("linux/bin"),
         )
         assertEquals("elf-data", outPath.toFile().readText())
-        outPath.toFile().delete()
     }
 
     @Test
     fun `extractFileFromZip should normalize backslash paths`() {
         val zipBytes = createZipInMemory("dir\\file.txt" to "backslash-content")
-        val outPath = Files.createTempFile("extract", ".txt")
+        val outPath = tempDir.resolve("extract.txt")
 
         extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("dir/file.txt"))
         assertEquals("backslash-content", outPath.toFile().readText())
-        outPath.toFile().delete()
     }
 
     // --- crc32ChecksumString ---
 
     @Test
     fun `Path crc32ChecksumString should return 8-char hex for existing file`() {
-        val tempFile = Files.createTempFile("crc", ".txt")
+        val tempFile = Files.createTempFile(tempDir, "crc", ".txt")
         tempFile.toFile().writeText("test content")
         val checksum = tempFile.crc32ChecksumString
         assertNotNull(checksum)
         assertEquals(8, checksum.length)
         assertTrue(checksum.all { it in '0'..'9' || it in 'a'..'f' })
-        tempFile.toFile().delete()
     }
 
     @Test
@@ -307,29 +307,25 @@ class UtilsTest {
 
     @Test
     fun `Path crc32ChecksumString should return null for directory`() {
-        val tempDir = createTempDirectory("crc-dir")
         assertNull(tempDir.crc32ChecksumString)
-        tempDir.toFile().delete()
     }
 
     @Test
     fun `Path crc32ChecksumString should be deterministic`() {
-        val tempFile = Files.createTempFile("crc-det", ".txt")
+        val tempFile = Files.createTempFile(tempDir, "crc-det", ".txt")
         tempFile.toFile().writeText("deterministic")
         val c1 = tempFile.crc32ChecksumString
         val c2 = tempFile.crc32ChecksumString
         assertEquals(c1, c2)
-        tempFile.toFile().delete()
     }
 
     @Test
     fun `File crc32ChecksumString should delegate to Path extension`() {
-        val tempFile = Files.createTempFile("crc-file", ".txt").toFile()
+        val tempFile = Files.createTempFile(tempDir, "crc-file", ".txt").toFile()
         tempFile.writeText("file ext test")
         val fromPath = tempFile.toPath().crc32ChecksumString
         val fromFile = tempFile.crc32ChecksumString
         assertEquals(fromPath, fromFile)
-        tempFile.delete()
     }
 
     @Test
@@ -341,8 +337,17 @@ class UtilsTest {
     // --- helpers ---
 
     private fun createMockPhpBinary(version: String): File =
-        File.createTempFile("mock-php", ".sh").apply {
-            writeText("#!/bin/sh\necho 'PHP $version (cli) (built: Jan 1 2024 00:00:00) (NTS)'")
+        createMockScript(
+            "mock-php-$version.sh",
+            "#!/bin/sh\necho 'PHP $version (cli) (built: Jan 1 2024 00:00:00) (NTS)'",
+        )
+
+    private fun createMockScript(
+        name: String,
+        script: String,
+    ): File =
+        tempDir.resolve(name).toFile().apply {
+            writeText(script)
             setExecutable(true)
         }
 

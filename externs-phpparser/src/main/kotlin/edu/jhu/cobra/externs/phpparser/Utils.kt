@@ -24,6 +24,12 @@ private val VERSION_FORMAT_REGEX = Regex("""^\d+(\.\d+){0,2}$""")
 // Liveness backstop for a wedged interpreter during the version probe.
 private const val VERSION_PROBE_TIMEOUT_SECONDS = 10L
 
+// Dotted version strings compare over at most major.minor.patch components.
+private const val VERSION_COMPONENT_COUNT = 3
+
+// Streaming buffer for checksum reads; balances syscall count against allocation size.
+private const val CRC_BUFFER_SIZE = 16384
+
 /**
  * Executes with temporary configuration that is rolled back after completion.
  *
@@ -45,16 +51,20 @@ public fun <T : AbcBinary> T.executeWith(tmpConfig: T.() -> Unit): BinaryResult 
 }
 
 /**
- * Searches for a file with a specified name under a given directory and its subdirectories.
+ * Looks up an executable file as a direct child of a directory.
  *
- * @param under The root directory from which the search should begin.
- * @param possibleNames Vararg of possible filenames to search for.
- * @return A [File] object representing the first matching file found; null if no file matches.
+ * @param under The directory whose direct children are checked.
+ * @param possibleNames Vararg of candidate file names.
+ * @return The first candidate that is an executable regular file; null when none is.
  */
 public fun searchBin(
     under: Path,
     vararg possibleNames: String,
-): File? = under.toFile().walkTopDown().firstOrNull { file -> file.isFile && file.name in possibleNames }
+): File? =
+    possibleNames
+        .asSequence()
+        .map { name -> File(under.toFile(), name) }
+        .firstOrNull { file -> file.isFile && file.canExecute() }
 
 /**
  * Searches for an executable by name in the system PATH.
@@ -74,17 +84,29 @@ public fun searchBin(name: String): File? {
         .firstOrNull()
 }
 
+// Runs `binary -v` and returns its first output line; a hung probe is force-killed and reported.
+private fun probeVersionLine(binary: File): String? {
+    val process = ProcessBuilder(binary.absolutePath, "-v").start()
+    if (!process.waitFor(VERSION_PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+        process.destroyForcibly().waitFor()
+        throw ExternalBinaryInvalidException(
+            binary.absolutePath,
+            "version probe timed out after $VERSION_PROBE_TIMEOUT_SECONDS s",
+        )
+    }
+    return process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readLine() }
+}
+
 /**
  * Reads the version reported by `php -v`.
  *
- * @throws ExternalBinaryInvalidException when the binary cannot run or its output carries no version.
+ * @throws ExternalBinaryInvalidException when the binary cannot run, hangs past the probe timeout,
+ * or its output carries no version.
  */
 private fun readPhpVersion(binary: File): String {
     val output =
         try {
-            val process = ProcessBuilder(binary.absolutePath, "-v").start()
-            if (!process.waitFor(VERSION_PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) process.destroyForcibly()
-            process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readLine() }
+            probeVersionLine(binary)
         } catch (cause: IOException) {
             throw ExternalBinaryInvalidException(binary.absolutePath, "could not run version probe", cause)
         }
@@ -113,7 +135,7 @@ public fun isPhpVersionValid(
     val currentParts = current.split(".").map { it.toInt() }
     val requiredParts = minRequired.split(".").map { it.toInt() }
     // Compare versions
-    for (i in 0..2) {
+    for (i in 0..<VERSION_COMPONENT_COUNT) {
         val curPart = currentParts.getOrElse(i) { 0 }
         val reqPart = requiredParts.getOrElse(i) { 0 }
         if (curPart > reqPart) return true
@@ -155,8 +177,8 @@ public val Path.crc32ChecksumString: String?
         val crc = CRC32()
         // Use NIO for platform-independent binary reading
         inputStream().use { inputStream ->
-            var bytesRead: Int // Use a reasonably sized buffer for efficient reading
-            val buffer = ByteArray(16384) // 16KB buffer
+            var bytesRead: Int
+            val buffer = ByteArray(CRC_BUFFER_SIZE)
             while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                 crc.update(buffer, 0, bytesRead)
             }
