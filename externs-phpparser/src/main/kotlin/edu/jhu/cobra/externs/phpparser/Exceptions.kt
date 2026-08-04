@@ -6,7 +6,7 @@ package edu.jhu.cobra.externs.phpparser
  * @param name the name of the missing executable
  * @param under the directory in which the executables are missing
  */
-class ExternalBinaryNotFoundException(
+public class ExternalBinaryNotFoundException(
     name: String,
     under: String? = null,
 ) : RuntimeException("$name do not exist under ${under ?: "the system"}.")
@@ -17,7 +17,7 @@ class ExternalBinaryNotFoundException(
  * @param name the name of the invalid executable
  * @param reason an optional description of why the executable is invalid
  */
-class ExternalBinaryInvalidException(
+public class ExternalBinaryInvalidException(
     name: String,
     reason: String? = null,
 ) : RuntimeException("$name provided is invalid: $reason")
@@ -26,6 +26,6 @@ class ExternalBinaryInvalidException(
  * Exception to indicate that an expected command line argument is missing.
  * @param argName the name of the missing argument.
  */
-class ExternalBinaryArgumentMissException(
+public class ExternalBinaryArgumentMissException(
     argName: String,
 ) : Exception("Argument $argName has not been initialized. ")

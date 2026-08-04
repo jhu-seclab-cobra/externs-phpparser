@@ -11,13 +11,13 @@ import kotlin.io.path.div
  * @param phpBinary PHP interpreter binary, or null to auto-detect.
  * @param parserBinary php-parser binary, or null to auto-detect.
  */
-class BinPhpParser(
+public class BinPhpParser(
     phpBinary: File? = null,
     parserBinary: File? = null,
 ) : AbcBinary() {
     /** Output format for parsed AST. */
-    enum class DumpType(
-        val opt: String,
+    public enum class DumpType(
+        public val opt: String,
     ) {
         S_EXPR("--dump"),
         VAR("--var-dump"),
@@ -96,27 +96,27 @@ class BinPhpParser(
     /**
      * The target PHP file to be parsed.
      */
-    var target: File by Argument("entryFile")
+    public var target: File by Argument("entryFile")
 
     /**
      * The type of dump output to produce, defaults to simple expression output.
      */
-    var dumpType: DumpType by Argument("dumpType", DumpType.S_EXPR)
+    public var dumpType: DumpType by Argument("dumpType", DumpType.S_EXPR)
 
     /** Pretty-print the AST output. */
-    var doPrettyPrint: Boolean by Option("--pretty-print", false)
+    public var doPrettyPrint: Boolean by Option("--pretty-print", false)
 
     /** Resolve names in the AST using NodeVisitor\NameResolver. */
-    var doResolveName: Boolean by Option("--resolve-names", false)
+    public var doResolveName: Boolean by Option("--resolve-names", false)
 
     /** Include column information in output. */
-    var doWithColInfo: Boolean by Option("--with-column-info", false)
+    public var doWithColInfo: Boolean by Option("--with-column-info", false)
 
     /** Include position information in output. */
-    var doWithPositions: Boolean by Option("--with-positions", false)
+    public var doWithPositions: Boolean by Option("--with-positions", false)
 
     /** Recover from parse errors instead of failing. */
-    var doWithRecovery: Boolean by Option("--with-recovery", false)
+    public var doWithRecovery: Boolean by Option("--with-recovery", false)
 
     override fun getCommandArray(): Array<String> =
         buildList {

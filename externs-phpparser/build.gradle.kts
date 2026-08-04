@@ -34,6 +34,7 @@ tasks.register<Test>("performanceTest") {
 }
 
 kotlin {
+    explicitApi()
     jvmToolchain { languageVersion.set(JavaLanguageVersion.of(sourceJavaVersion.majorVersion)) }
     compilerOptions {
         jvmTarget =

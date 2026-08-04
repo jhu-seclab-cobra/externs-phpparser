@@ -1,6 +1,7 @@
 package edu.jhu.cobra.externs.phpparser.abc
 
 import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
+import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.Path
@@ -17,13 +18,13 @@ import kotlin.reflect.KProperty
 
 /** Abstract executable that runs in a working directory. */
 @Suppress("UNCHECKED_CAST")
-abstract class AbcBinary {
+public abstract class AbcBinary {
     private val tmpDir = Path(System.getProperty("java.io.tmpdir"))
-    var workTmpDir = tmpDir / "cobra" / "binaries" / this::class.java.simpleName
-    val allArguments: MutableMap<String, Any?> = mutableMapOf()
-    val allOptions: MutableMap<String, Any> = mutableMapOf()
-    var timeout: Duration = Duration.ofMinutes(1)
-    var doCacheOutput: Boolean = false
+    public var workTmpDir: Path = tmpDir / "cobra" / "binaries" / this::class.java.simpleName
+    public val allArguments: MutableMap<String, Any?> = mutableMapOf()
+    public val allOptions: MutableMap<String, Any> = mutableMapOf()
+    public var timeout: Duration = Duration.ofMinutes(1)
+    public var doCacheOutput: Boolean = false
 
     // Delegated property backed by allArguments.
     protected inner class Argument<T : Any?>(
@@ -72,13 +73,13 @@ abstract class AbcBinary {
     }
 
     /** Builds the CLI command with all configured arguments and options. */
-    abstract fun getCommandArray(): Array<String>
+    public abstract fun getCommandArray(): Array<String>
 
     /**
      * Runs the configured command and returns the result.
      * @return exit code and output file.
      */
-    open fun execute(): BinaryResult {
+    public open fun execute(): BinaryResult {
         if (workTmpDir.notExists()) workTmpDir.createDirectories()
         val cmdArray = this.getCommandArray()
         val cmdUname = cmdArray.contentHashCode().absoluteValue.toString()

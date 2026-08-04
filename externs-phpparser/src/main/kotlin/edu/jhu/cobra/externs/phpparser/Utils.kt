@@ -26,7 +26,7 @@ private val VERSION_FORMAT_REGEX = Regex("""^\d+(\.\d+){0,2}$""")
  * @param tmpConfig configuration applied before execution.
  * @return the execution result.
  */
-fun <T : AbcBinary> T.executeWith(tmpConfig: T.() -> Unit): BinaryResult {
+public fun <T : AbcBinary> T.executeWith(tmpConfig: T.() -> Unit): BinaryResult {
     val argsBackup = HashMap(allArguments)
     val optionsBackup = HashMap(allOptions)
     try {
@@ -47,13 +47,13 @@ fun <T : AbcBinary> T.executeWith(tmpConfig: T.() -> Unit): BinaryResult {
  * @param possibleNames Vararg of possible filenames to search for.
  * @return A [File] object representing the first matching file found; null if no file matches.
  */
-fun searchBin(
+public fun searchBin(
     under: Path,
     vararg possibleNames: String,
 ): File? = under.toFile().walkTopDown().firstOrNull { file -> file.isFile && file.name in possibleNames }
 
 /** Searches for an executable by name in the system PATH. */
-fun searchBin(name: String): File? {
+public fun searchBin(name: String): File? {
     val osName = System.getProperty("os.name").lowercase()
     val isWinBin = osName.contains("win") && !(name.endsWith(".exe") || name.endsWith(".bat"))
     val exeNames = if (isWinBin) arrayOf("$name.exe", "$name.bat") else arrayOf(name)
@@ -71,7 +71,7 @@ fun searchBin(name: String): File? {
  *
  * @param includeEqual true for >=, false for strict >
  */
-fun isPhpVersionValid(
+public fun isPhpVersionValid(
     binary: File,
     minRequired: String,
     includeEqual: Boolean = true,
@@ -101,7 +101,7 @@ fun isPhpVersionValid(
 }
 
 /** Extracts a file from a ZIP archive to [toOutPath]. */
-fun extractFileFromZip(
+public fun extractFileFromZip(
     zipInputStream: InputStream,
     toOutPath: Path,
     vararg fromZipPath: Path,
@@ -122,8 +122,8 @@ fun extractFileFromZip(
 }
 
 /** CRC32 checksum as lowercase hex string, or null if the file does not exist. */
-val Path.crc32ChecksumString
-    get(): String? {
+public val Path.crc32ChecksumString: String?
+    get() {
         // Validate file exists and is a regular file
         if (!exists() || !isRegularFile()) return null
         val crc = CRC32()
@@ -140,4 +140,4 @@ val Path.crc32ChecksumString
     }
 
 /** CRC32 checksum as lowercase hex string, or null if the file does not exist. */
-val File.crc32ChecksumString get() = toPath().crc32ChecksumString
+public val File.crc32ChecksumString: String? get() = toPath().crc32ChecksumString
