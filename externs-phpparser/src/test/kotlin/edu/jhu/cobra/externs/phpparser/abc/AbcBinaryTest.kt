@@ -10,8 +10,12 @@ package edu.jhu.cobra.externs.phpparser.abc
  * - `should build command array with options and arguments` — getCommandArray includes options and args.
  * - `should execute and return success result` — execute returns code 0 with output file.
  * - `should return cached output on repeated execution` — second execute returns same cached file.
+ * - `should keep distinct cache entries for hash-colliding commands` — 32-bit contentHashCode collision
+ *   must not replay the wrong cached output.
  * - `should not replay failed run from cache` — a failed run is never cached as success.
  * - `should return code -1 on timeout` — timed-out process returns code -1.
+ * - `should reap TERM-ignoring process before returning on timeout` — destroy escalates to destroyForcibly
+ *   so no process survives past the timeout return.
  * - `timeout output should render duration in milliseconds` — no ISO-8601 duration in the timeout message.
  * - `timeout output should stay inside workTmpDir` — no orphan temp file outside the working directory.
  * - `should honor sub-minute timeout` — a sub-minute timeout waits instead of truncating to zero.
@@ -29,16 +33,22 @@ package edu.jhu.cobra.externs.phpparser.abc
 
 import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
 import edu.jhu.cobra.externs.phpparser.executeWith
+import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
 import java.time.Duration
-import kotlin.io.path.createTempDirectory
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class AbcBinaryTest {
+internal class AbcBinaryTest {
+    @TempDir
+    lateinit var tempDir: Path
+
     class EchoBinary : AbcBinary() {
         var message: String by Argument<String>("message")
         var nullableArg: String? by Argument<String?>("nullableArg")
@@ -62,6 +72,15 @@ class AbcBinaryTest {
 
     class FailBinary : AbcBinary() {
         override fun getCommandArray(): Array<String> = arrayOf("false")
+    }
+
+    // Ignores SIGTERM; only SIGKILL ends it. The marker makes the process findable via pgrep.
+    class StubbornBinary(
+        marker: String,
+    ) : AbcBinary() {
+        private val script = "trap '' TERM; while :; do sleep 1; done # $marker"
+
+        override fun getCommandArray(): Array<String> = arrayOf("sh", "-c", script)
     }
 
     @Test
@@ -119,6 +138,7 @@ class AbcBinaryTest {
     @Test
     fun `should return cached output on repeated execution`() {
         val binary = EchoBinary()
+        binary.workTmpDir = tempDir
         binary.message = "cache-test"
         binary.doCacheOutput = true
 
@@ -131,9 +151,31 @@ class AbcBinaryTest {
     }
 
     @Test
+    fun `should keep distinct cache entries for hash-colliding commands`() {
+        // "Aa" and "BB" share a String.hashCode, so the command arrays collide on contentHashCode.
+        assertEquals(arrayOf("echo", "Aa").contentHashCode(), arrayOf("echo", "BB").contentHashCode())
+        val binary = EchoBinary()
+        binary.workTmpDir = tempDir
+        binary.doCacheOutput = true
+
+        binary.message = "Aa"
+        val result1 = binary.execute()
+        assertEquals(0, result1.code)
+
+        binary.message = "BB"
+        val result2 = binary.execute()
+        assertEquals(0, result2.code)
+        assertNotEquals(result1.output.absolutePath, result2.output.absolutePath)
+        assertTrue(
+            result2.output.readText().contains("BB"),
+            "colliding command must not replay the other command's cached output",
+        )
+    }
+
+    @Test
     fun `should not replay failed run from cache`() {
         val binary = FailBinary()
-        binary.workTmpDir = createTempDirectory("abc-binary-test")
+        binary.workTmpDir = tempDir
         binary.doCacheOutput = true
 
         val result1 = binary.execute()
@@ -146,6 +188,7 @@ class AbcBinaryTest {
     @Test
     fun `should return code -1 on timeout`() {
         val binary = SleepBinary()
+        binary.workTmpDir = tempDir
         binary.timeout = Duration.ofSeconds(0)
 
         val result = binary.execute()
@@ -154,9 +197,26 @@ class AbcBinaryTest {
     }
 
     @Test
+    fun `should reap TERM-ignoring process before returning on timeout`() {
+        val marker = "cobra-abc-reap-${UUID.randomUUID()}"
+        val binary = StubbornBinary(marker)
+        binary.workTmpDir = tempDir
+        binary.timeout = Duration.ofMillis(200)
+
+        val result = binary.execute()
+        val survivor = ProcessBuilder("pgrep", "-f", marker).start()
+        survivor.waitFor()
+        val stillAlive = survivor.exitValue() == 0
+        // Reap any survivor so a failure does not leak a 60s process into the environment.
+        ProcessBuilder("pkill", "-9", "-f", marker).start().waitFor()
+        assertEquals(-1, result.code)
+        assertFalse(stillAlive, "process ignoring SIGTERM must be force-killed before execute returns")
+    }
+
+    @Test
     fun `timeout output should render duration in milliseconds`() {
         val binary = SleepBinary()
-        binary.workTmpDir = createTempDirectory("abc-binary-timeout")
+        binary.workTmpDir = tempDir
         binary.timeout = Duration.ofSeconds(0)
 
         val result = binary.execute()
@@ -167,7 +227,7 @@ class AbcBinaryTest {
     @Test
     fun `timeout output should stay inside workTmpDir`() {
         val binary = SleepBinary()
-        binary.workTmpDir = createTempDirectory("abc-binary-timeout")
+        binary.workTmpDir = tempDir
         binary.timeout = Duration.ofSeconds(0)
 
         val result = binary.execute()
@@ -181,6 +241,7 @@ class AbcBinaryTest {
     @Test
     fun `should honor sub-minute timeout`() {
         val binary = SleepBinary(seconds = 1)
+        binary.workTmpDir = tempDir
         binary.timeout = Duration.ofSeconds(30)
 
         val result = binary.execute()

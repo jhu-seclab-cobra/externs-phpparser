@@ -2,6 +2,7 @@ package edu.jhu.cobra.externs.phpparser.abc
 
 import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.Path
@@ -10,9 +11,18 @@ import kotlin.io.path.div
 import kotlin.io.path.exists
 import kotlin.io.path.moveTo
 import kotlin.io.path.notExists
-import kotlin.math.absoluteValue
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
+
+// Grace period for a destroyed process to exit before forcible termination.
+private const val TERMINATION_GRACE_MILLIS = 5_000L
+
+// Collision-free identifier for a command line: SHA-1 over the NUL-joined argument bytes.
+private fun cacheKeyOf(cmdArray: Array<String>): String {
+    val cmdBytes = cmdArray.joinToString(separator = "\u0000").toByteArray(Charsets.UTF_8)
+    val digest = MessageDigest.getInstance("SHA-1").digest(cmdBytes)
+    return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
+}
 
 /** Abstract executable that runs in a working directory. */
 public abstract class AbcBinary {
@@ -89,7 +99,7 @@ public abstract class AbcBinary {
     public open fun execute(): BinaryResult {
         if (workTmpDir.notExists()) workTmpDir.createDirectories()
         val cmdArray = this.getCommandArray()
-        val cmdUname = cmdArray.contentHashCode().absoluteValue.toString()
+        val cmdUname = cacheKeyOf(cmdArray)
         val cacheFile = workTmpDir.resolve(".$cmdUname.cache")
         if (doCacheOutput && cacheFile.exists()) return BinaryResult(code = 0, output = cacheFile.toFile())
         val tmpStdOut = workTmpDir.resolve(".$cmdUname.out").toFile()
@@ -101,7 +111,7 @@ public abstract class AbcBinary {
         val process = pBuilder.start()
         val isFinished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)
         if (!isFinished) {
-            process.destroy()
+            reapTimedOutProcess(process)
             tmpStdOut.appendText("timed out after ${timeout.toMillis()} ms")
             return BinaryResult(code = -1, output = tmpStdOut)
         }
@@ -111,5 +121,12 @@ public abstract class AbcBinary {
             return BinaryResult(code = 0, output = cacheFile.toFile())
         }
         return BinaryResult(code = exitCode, output = tmpStdOut)
+    }
+
+    // Terminates gracefully first, then forcibly, and reaps before returning.
+    private fun reapTimedOutProcess(process: Process) {
+        process.destroy()
+        if (process.waitFor(TERMINATION_GRACE_MILLIS, TimeUnit.MILLISECONDS)) return
+        process.destroyForcibly().waitFor()
     }
 }
