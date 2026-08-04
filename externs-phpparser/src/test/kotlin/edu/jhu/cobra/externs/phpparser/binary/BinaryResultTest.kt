@@ -1,4 +1,4 @@
-package edu.jhu.cobra.externs.phpparser.abc
+package edu.jhu.cobra.externs.phpparser.binary
 
 /**
  * Tests for [BinaryResult] — immutable data holder for execution outcomes.

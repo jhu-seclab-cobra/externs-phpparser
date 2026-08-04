@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-import edu.jhu.cobra.externs.phpparser.abc.AbcBinary
+import edu.jhu.cobra.externs.phpparser.binary.AbcBinary
 import java.io.File
 import kotlin.io.path.Path
 import kotlin.io.path.div
@@ -95,7 +95,14 @@ public class BinPhpParser(
                 ?: throw ExternalBinaryNotFoundException("php$MIN_PHP_VERSION+", "resources or sys paths")
         }
         extractFileFromZip(loadStream, expFilePath, Path("php"), Path("php.exe"))
-        return expFilePath.toFile().apply { setExecutable(true) }
+        val extractedBinary = expFilePath.toFile()
+        if (!extractedBinary.setExecutable(true)) {
+            throw ExternalBinaryInvalidException(
+                extractedBinary.absolutePath,
+                "could not mark the extracted interpreter executable",
+            )
+        }
+        return extractedBinary
     }
 
     // Reuses a checksum-verified extraction or re-extracts the bundled php-parser PHAR.

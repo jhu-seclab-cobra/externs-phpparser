@@ -1,9 +1,8 @@
-package edu.jhu.cobra.externs.phpparser.abc
+package edu.jhu.cobra.externs.phpparser.binary
 
 import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
 import java.nio.file.Path
 import java.security.MessageDigest
-import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
@@ -14,8 +13,11 @@ import kotlin.io.path.notExists
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
+// Liveness backstop for a wedged external process; a bound on hangs, not a tuning knob.
+internal const val EXECUTION_TIMEOUT_MILLIS = 60_000L
+
 // Grace period for a destroyed process to exit before forcible termination.
-private const val TERMINATION_GRACE_MILLIS = 5_000L
+internal const val TERMINATION_GRACE_MILLIS = 5_000L
 
 // Collision-free identifier for a command line: SHA-1 over the NUL-joined argument bytes.
 private fun cacheKeyOf(cmdArray: Array<String>): String {
@@ -28,10 +30,13 @@ private fun cacheKeyOf(cmdArray: Array<String>): String {
 public abstract class AbcBinary {
     private val tmpDir = Path(System.getProperty("java.io.tmpdir"))
     public var workTmpDir: Path = tmpDir / "cobra" / "binaries" / this::class.java.simpleName
-    public val allArguments: MutableMap<String, Any?> = mutableMapOf()
-    public val allOptions: MutableMap<String, Any> = mutableMapOf()
-    public var timeout: Duration = Duration.ofMinutes(1)
+    internal val allArguments: MutableMap<String, Any?> = mutableMapOf()
+    internal val allOptions: MutableMap<String, Any> = mutableMapOf()
     public var doCacheOutput: Boolean = false
+
+    // Liveness backstops. Open so test doubles can shorten waits; never per-run configuration.
+    internal open val executionTimeoutMillis: Long = EXECUTION_TIMEOUT_MILLIS
+    internal open val terminationGraceMillis: Long = TERMINATION_GRACE_MILLIS
 
     // Delegated property backed by allArguments.
     protected inner class Argument<T : Any?>(
@@ -109,10 +114,10 @@ public abstract class AbcBinary {
                 .redirectErrorStream(true)
                 .redirectOutput(tmpStdOut)
         val process = pBuilder.start()
-        val isFinished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)
+        val isFinished = process.waitFor(executionTimeoutMillis, TimeUnit.MILLISECONDS)
         if (!isFinished) {
             reapTimedOutProcess(process)
-            tmpStdOut.appendText("timed out after ${timeout.toMillis()} ms")
+            tmpStdOut.appendText("timed out after $executionTimeoutMillis ms")
             return BinaryResult(code = -1, output = tmpStdOut)
         }
         val exitCode = process.exitValue()
@@ -123,10 +128,27 @@ public abstract class AbcBinary {
         return BinaryResult(code = exitCode, output = tmpStdOut)
     }
 
+    /**
+     * Runs [block] and restores the argument and option registries afterward, on both
+     * normal completion and exception.
+     */
+    internal fun <R> withConfigurationSnapshot(block: () -> R): R {
+        val argumentsSnapshot = HashMap(allArguments)
+        val optionsSnapshot = HashMap(allOptions)
+        try {
+            return block()
+        } finally {
+            allArguments.clear()
+            allArguments.putAll(argumentsSnapshot)
+            allOptions.clear()
+            allOptions.putAll(optionsSnapshot)
+        }
+    }
+
     // Terminates gracefully first, then forcibly, and reaps before returning.
     private fun reapTimedOutProcess(process: Process) {
         process.destroy()
-        if (process.waitFor(TERMINATION_GRACE_MILLIS, TimeUnit.MILLISECONDS)) return
+        if (process.waitFor(terminationGraceMillis, TimeUnit.MILLISECONDS)) return
         process.destroyForcibly().waitFor()
     }
 }
