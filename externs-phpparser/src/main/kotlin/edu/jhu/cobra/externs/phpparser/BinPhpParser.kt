@@ -47,13 +47,17 @@ class BinPhpParser(phpBinary: File? = null, parserBinary: File? = null) : AbcBin
         val uniOsName = preloadOsUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawOsName } }
         val rawArchName = System.getProperty("os.arch", "unknown").lowercase()
         val uniArchName = preloadArchUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawArchName } }
-        val fileName = "php-cli-8.4-${uniOsName}-${uniArchName}".lowercase()
+        if (uniOsName == null || uniArchName == null) {
+            return@run searchSystemPhp() ?: throw ExternalBinaryNotFoundException(
+                "php7.1+", "no bundled build for os=$rawOsName arch=$rawArchName; sys paths"
+            )
+        }
+        val fileName = "php-cli-8.4-$uniOsName-$uniArchName"
         val expFilePath = this.workTmpDir / fileName // the work tmp dir of the tool located in the tmp dir of sys
         if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return@run expFilePath.toFile()
         val loadStream = Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
         if (loadStream == null) {
-            val foundPhpBinary = searchBin("php")?.takeIf { isPhpVersionValid(it, "7.1") }
-            return@run foundPhpBinary ?: throw ExternalBinaryNotFoundException("php7.1+", "resources or sys paths")
+            return@run searchSystemPhp() ?: throw ExternalBinaryNotFoundException("php7.1+", "resources or sys paths")
         }
         val doUnzipSuccess = extractFileFromZip(loadStream, expFilePath, Path("php"), Path("php.exe"))
         if (!doUnzipSuccess) throw ExternalBinaryNotFoundException("php", "unzip failed")
@@ -71,6 +75,7 @@ class BinPhpParser(phpBinary: File? = null, parserBinary: File? = null) : AbcBin
         return@run expFilePath.toFile()
     }
 
+    private fun searchSystemPhp(): File? = searchBin("php")?.takeIf { isPhpVersionValid(it, "7.1") }
 
     /**
      * The target PHP file to be parsed.

@@ -16,6 +16,8 @@ package edu.jhu.cobra.externs.phpparser
  * - `should extract bundled PHP from zip when CRC32 mismatch` — extraction on mismatch
  * - `should throw when PHP zip extraction fails` — extraction failure throws
  * - `should throw when parser zip extraction fails` — parser extraction failure throws
+ * - `should report os and arch when platform is unsupported` — unknown OS never resolves a
+ *   bundled binary; without system PHP it throws with the raw os/arch in the message
  *
  * Configuration:
  * - `should default to S_EXPR dump type` — default dumpType
@@ -560,6 +562,28 @@ class BinPhpParserTest {
                 BinPhpParser()
             }
         } finally {
+            unmockkAll()
+        }
+    }
+
+    @Test
+    fun `should report os and arch when platform is unsupported`() {
+        val origOsName = System.getProperty("os.name")
+        mockkStatic("edu.jhu.cobra.externs.phpparser.UtilsKt")
+        try {
+            System.setProperty("os.name", "solarix")
+            every { isPhpVersionValid(any(), any(), any()) } returns true
+            every { searchBin(name = any<String>()) } returns null
+
+            val exception = assertFailsWith<ExternalBinaryNotFoundException> {
+                BinPhpParser()
+            }
+            assertTrue(
+                exception.message.orEmpty().contains("solarix"),
+                "Exception should name the unsupported OS, got: ${exception.message}"
+            )
+        } finally {
+            System.setProperty("os.name", origOsName)
             unmockkAll()
         }
     }
