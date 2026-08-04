@@ -5,6 +5,9 @@ import java.io.File
 import kotlin.io.path.Path
 import kotlin.io.path.div
 
+// Lowest interpreter version able to run the bundled php-parser PHAR.
+private const val MIN_PHP_VERSION = "7.1"
+
 /**
  * Parses PHP files into ASTs using the php-parser binary.
  *
@@ -56,14 +59,19 @@ public class BinPhpParser(
 
     private val phpBinaryFile: File =
         run {
-            if (phpBinary != null && isPhpVersionValid(phpBinary, "7.1")) return@run phpBinary
+            if (phpBinary != null) {
+                if (!isPhpVersionValid(phpBinary, MIN_PHP_VERSION)) {
+                    throw ExternalBinaryInvalidException(phpBinary.absolutePath, "PHP version is below $MIN_PHP_VERSION")
+                }
+                return@run phpBinary
+            }
             val rawOsName = System.getProperty("os.name", "unknown").lowercase()
             val uniOsName = preloadOsUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawOsName } }
             val rawArchName = System.getProperty("os.arch", "unknown").lowercase()
             val uniArchName = preloadArchUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawArchName } }
             if (uniOsName == null || uniArchName == null) {
                 return@run searchSystemPhp() ?: throw ExternalBinaryNotFoundException(
-                    "php7.1+",
+                    "php$MIN_PHP_VERSION+",
                     "no bundled build for os=$rawOsName arch=$rawArchName; sys paths",
                 )
             }
@@ -72,10 +80,10 @@ public class BinPhpParser(
             if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return@run expFilePath.toFile()
             val loadStream = Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
             if (loadStream == null) {
-                return@run searchSystemPhp() ?: throw ExternalBinaryNotFoundException("php7.1+", "resources or sys paths")
+                return@run searchSystemPhp()
+                    ?: throw ExternalBinaryNotFoundException("php$MIN_PHP_VERSION+", "resources or sys paths")
             }
-            val doUnzipSuccess = extractFileFromZip(loadStream, expFilePath, Path("php"), Path("php.exe"))
-            if (!doUnzipSuccess) throw ExternalBinaryNotFoundException("php", "unzip failed")
+            extractFileFromZip(loadStream, expFilePath, Path("php"), Path("php.exe"))
             return@run expFilePath.toFile().apply { setExecutable(true) }
         }
 
@@ -85,13 +93,14 @@ public class BinPhpParser(
             val fileName = "php-parser-5.7.0"
             val expFilePath = this.workTmpDir / fileName
             if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return@run expFilePath.toFile()
-            val loadStream = Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")!!
-            val doUnzipSuccess = extractFileFromZip(loadStream, expFilePath, Path("php-parser.phar"))
-            if (!doUnzipSuccess) throw ExternalBinaryNotFoundException("php-parser.phar", "unzip failed")
+            val loadStream =
+                Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
+                    ?: throw ExternalBinaryNotFoundException("$fileName.zip", "the classpath resources")
+            extractFileFromZip(loadStream, expFilePath, Path("php-parser.phar"))
             return@run expFilePath.toFile()
         }
 
-    private fun searchSystemPhp(): File? = searchBin("php")?.takeIf { isPhpVersionValid(it, "7.1") }
+    private fun searchSystemPhp(): File? = searchBin("php")?.takeIf { isPhpVersionValid(it, MIN_PHP_VERSION) }
 
     /**
      * The target PHP file to be parsed.

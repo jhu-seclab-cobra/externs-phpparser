@@ -12,15 +12,18 @@ package edu.jhu.cobra.externs.phpparser.abc
  * - `should return cached output on repeated execution` — second execute returns same cached file.
  * - `should not replay failed run from cache` — a failed run is never cached as success.
  * - `should return code -1 on timeout` — timed-out process returns code -1.
+ * - `timeout output should render duration in milliseconds` — no ISO-8601 duration in the timeout message.
+ * - `timeout output should stay inside workTmpDir` — no orphan temp file outside the working directory.
  * - `should honor sub-minute timeout` — a sub-minute timeout waits instead of truncating to zero.
  * - `should restore config after executeWith` — arguments restored after executeWith.
  * - `should use temporary config during executeWith` — temporary config used during execution.
  * - `should return null for option with null default` — Option with no default returns null.
  * - `should read string option value` — string Option read/write.
  * - `should skip creating workTmpDir if it already exists` — no error on existing dir.
- * - `should ignore null when setting nullable option` — null setValue is a no-op.
+ * - `should remove option when setting null` — null setValue removes the key; read returns null.
  * - `should ignore null when setting argument via allArguments` — null in map causes throw on read.
- * - `should ignore null when setting nullable argument` — null setValue is a no-op for Argument.
+ * - `should remove argument when setting null` — null setValue removes the key; read throws.
+ * - `should throw when option with non-null default is missing` — missing key names the option.
  * - `executeWith restores state when execute throws` — try-finally restores state on exception.
  */
 
@@ -31,6 +34,7 @@ import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -150,6 +154,31 @@ class AbcBinaryTest {
     }
 
     @Test
+    fun `timeout output should render duration in milliseconds`() {
+        val binary = SleepBinary()
+        binary.workTmpDir = createTempDirectory("abc-binary-timeout")
+        binary.timeout = Duration.ofSeconds(0)
+
+        val result = binary.execute()
+        val message = result.output.readText()
+        assertTrue("timed out after 0 ms" in message, "message should render milliseconds, got: $message")
+    }
+
+    @Test
+    fun `timeout output should stay inside workTmpDir`() {
+        val binary = SleepBinary()
+        binary.workTmpDir = createTempDirectory("abc-binary-timeout")
+        binary.timeout = Duration.ofSeconds(0)
+
+        val result = binary.execute()
+        assertEquals(
+            binary.workTmpDir.toFile().absolutePath,
+            result.output.parentFile.absolutePath,
+            "timeout output must not leave an orphan file outside workTmpDir",
+        )
+    }
+
+    @Test
     fun `should honor sub-minute timeout`() {
         val binary = SleepBinary(seconds = 1)
         binary.timeout = Duration.ofSeconds(30)
@@ -213,12 +242,25 @@ class AbcBinaryTest {
     }
 
     @Test
-    fun `should ignore null when setting nullable option`() {
+    fun `should remove option when setting null`() {
         val binary = EchoBinary()
         binary.nullableOpt = "value"
         assertEquals("value", binary.nullableOpt)
         binary.nullableOpt = null
-        assertEquals("value", binary.nullableOpt)
+        assertEquals(null, binary.nullableOpt)
+        assertFalse("--nullable" in binary.allOptions, "null assignment should remove the option key")
+    }
+
+    @Test
+    fun `should throw when option with non-null default is missing`() {
+        val binary = EchoBinary()
+        binary.allOptions.remove("--format")
+        val exception =
+            assertFailsWith<IllegalStateException> {
+                @Suppress("UNUSED_VARIABLE")
+                val format = binary.outputFormat
+            }
+        assertTrue("--format" in exception.message.orEmpty(), "message should name the option: ${exception.message}")
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -235,12 +277,16 @@ class AbcBinaryTest {
     }
 
     @Test
-    fun `should ignore null when setting nullable argument`() {
+    fun `should remove argument when setting null`() {
         val binary = EchoBinary()
         binary.nullableArg = "value"
         assertEquals("value", binary.nullableArg)
         binary.nullableArg = null
-        assertEquals("value", binary.nullableArg)
+        assertFalse("nullableArg" in binary.allArguments, "null assignment should remove the argument key")
+        assertFailsWith<ExternalBinaryArgumentMissException> {
+            @Suppress("UNUSED_VARIABLE")
+            val arg = binary.nullableArg
+        }
     }
 
     @Test

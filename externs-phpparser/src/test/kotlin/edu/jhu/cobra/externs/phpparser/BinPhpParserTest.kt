@@ -8,7 +8,8 @@ package edu.jhu.cobra.externs.phpparser
  * - `should throw when phpBinary does not exist` — invalid binary throws
  * - `should accept valid system php binary` — system PHP accepted
  * - `should accept custom parserBinary` — custom PHAR accepted
- * - `should fall back to auto-detect when phpBinary version too low` — low version fallback
+ * - `should throw when phpBinary version too low` — caller-supplied binary is never silently discarded
+ * - `should throw with resource context when parser zip resource missing` — missing classpath zip names the resource
  * - `should fall back to system PATH when bundled PHP zip missing` — zip missing fallback
  * - `should fall back to system PATH with valid PHP found` — PATH search
  * - `should throw when bundled zip missing and no system PHP` — no PHP throws
@@ -77,6 +78,7 @@ package edu.jhu.cobra.externs.phpparser
  */
 
 import io.mockk.every
+import io.mockk.justRun
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import java.io.File
@@ -384,15 +386,54 @@ class BinPhpParserTest {
     }
 
     @Test
-    fun `should fall back to auto-detect when phpBinary version too low`() {
+    fun `should throw when phpBinary version too low`() {
         val fakePhp = Files.createTempFile("fake-php", ".sh").toFile()
         fakePhp.writeText("#!/bin/sh\necho 'PHP 5.0.0 (cli)'")
         fakePhp.setExecutable(true)
         try {
-            val parser = BinPhpParser(phpBinary = fakePhp)
-            assertNotNull(parser)
+            val exception =
+                assertFailsWith<ExternalBinaryInvalidException> {
+                    BinPhpParser(phpBinary = fakePhp)
+                }
+            assertTrue(
+                exception.message.orEmpty().contains(fakePhp.absolutePath),
+                "message should name the rejected binary: ${exception.message}",
+            )
         } finally {
             fakePhp.delete()
+        }
+    }
+
+    @Test
+    fun `should throw with resource context when parser zip resource missing`() {
+        mockkStatic("edu.jhu.cobra.externs.phpparser.UtilsKt")
+        try {
+            every { any<Path>().crc32ChecksumString } returns "mismatch"
+            every { isPhpVersionValid(any(), any(), any()) } returns true
+            justRun { extractFileFromZip(any(), any(), *anyVararg()) }
+            val mockLoader =
+                object : ClassLoader(Thread.currentThread().contextClassLoader) {
+                    override fun getResourceAsStream(name: String): InputStream? {
+                        if (name.startsWith("php-parser-")) return null
+                        return super.getResourceAsStream(name)
+                    }
+                }
+            val origLoader = Thread.currentThread().contextClassLoader
+            Thread.currentThread().contextClassLoader = mockLoader
+            try {
+                val exception =
+                    assertFailsWith<ExternalBinaryNotFoundException> {
+                        BinPhpParser()
+                    }
+                assertTrue(
+                    "php-parser-5.7.0.zip" in exception.message.orEmpty(),
+                    "message should name the missing resource: ${exception.message}",
+                )
+            } finally {
+                Thread.currentThread().contextClassLoader = origLoader
+            }
+        } finally {
+            unmockkAll()
         }
     }
 
@@ -420,7 +461,7 @@ class BinPhpParserTest {
         try {
             every { any<Path>().crc32ChecksumString } returns "mismatch"
             every { isPhpVersionValid(any(), any(), any()) } returns true
-            every { extractFileFromZip(any(), any(), *anyVararg()) } returns true
+            justRun { extractFileFromZip(any(), any(), *anyVararg()) }
             every { searchBin(name = any<String>()) } returns sysPhp
             val mockLoader =
                 object : ClassLoader(Thread.currentThread().contextClassLoader) {
@@ -450,7 +491,7 @@ class BinPhpParserTest {
         try {
             every { any<Path>().crc32ChecksumString } returns "mismatch"
             every { isPhpVersionValid(any(), any(), any()) } returns true
-            every { extractFileFromZip(any(), any(), *anyVararg()) } returns true
+            justRun { extractFileFromZip(any(), any(), *anyVararg()) }
             every { searchBin(name = any<String>()) } returns fakeBin
             val mockLoader =
                 object : ClassLoader(Thread.currentThread().contextClassLoader) {
@@ -481,7 +522,7 @@ class BinPhpParserTest {
         try {
             every { any<Path>().crc32ChecksumString } returns "mismatch"
             every { isPhpVersionValid(any(), any(), any()) } returns false
-            every { extractFileFromZip(any(), any(), *anyVararg()) } returns true
+            justRun { extractFileFromZip(any(), any(), *anyVararg()) }
             every { searchBin(name = any<String>()) } returns fakeBin
             val mockLoader =
                 object : ClassLoader(Thread.currentThread().contextClassLoader) {
@@ -511,7 +552,7 @@ class BinPhpParserTest {
         try {
             every { any<Path>().crc32ChecksumString } returns "mismatch"
             every { isPhpVersionValid(any(), any(), any()) } returns true
-            every { extractFileFromZip(any(), any(), *anyVararg()) } returns true
+            justRun { extractFileFromZip(any(), any(), *anyVararg()) }
             every { searchBin(name = any<String>()) } returns null
             val mockLoader =
                 object : ClassLoader(Thread.currentThread().contextClassLoader) {
@@ -540,7 +581,7 @@ class BinPhpParserTest {
         try {
             every { any<Path>().crc32ChecksumString } returns "mismatch"
             every { isPhpVersionValid(any(), any(), any()) } returns true
-            every { extractFileFromZip(any(), any(), *anyVararg()) } returns true
+            justRun { extractFileFromZip(any(), any(), *anyVararg()) }
 
             val parser = BinPhpParser()
             assertNotNull(parser)
@@ -555,7 +596,9 @@ class BinPhpParserTest {
         try {
             every { any<Path>().crc32ChecksumString } returns "mismatch"
             every { isPhpVersionValid(any(), any(), any()) } returns true
-            every { extractFileFromZip(any(), any(), *anyVararg()) } returns false
+            every {
+                extractFileFromZip(any(), any(), *anyVararg())
+            } throws ExternalBinaryNotFoundException("php", "the zip archive")
 
             assertFailsWith<ExternalBinaryNotFoundException> {
                 BinPhpParser()
@@ -574,7 +617,7 @@ class BinPhpParserTest {
             var callCount = 0
             every { extractFileFromZip(any(), any(), *anyVararg()) } answers {
                 callCount++
-                callCount == 1
+                if (callCount > 1) throw ExternalBinaryNotFoundException("php-parser.phar", "the zip archive")
             }
 
             assertFailsWith<ExternalBinaryNotFoundException> {

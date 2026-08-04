@@ -16,6 +16,7 @@ package edu.jhu.cobra.externs.phpparser
  * - `isPhpVersionValid should throw on invalid minRequired format` — invalid format throws.
  * - `isPhpVersionValid should throw when binary produces no version output` — non-version output throws.
  * - `isPhpVersionValid should throw when binary does not exist` — missing binary throws.
+ * - `isPhpVersionValid should attach IOException cause when binary cannot run` — process-start failure keeps cause.
  * - `isPhpVersionValid should compare major version correctly` — major-only comparison.
  * - `isPhpVersionValid should compare minor version when major is equal` — minor comparison.
  * - `isPhpVersionValid should compare patch version when major and minor are equal` — patch comparison.
@@ -23,7 +24,7 @@ package edu.jhu.cobra.externs.phpparser
  * - `isPhpVersionValid should throw when binary outputs empty` — empty output throws.
  * - `isPhpVersionValid should handle two-part minRequired against three-part current` — mixed lengths.
  * - `extractFileFromZip should extract matching entry` — extracts target file from ZIP.
- * - `extractFileFromZip should return false when entry not found` — returns false for missing entry.
+ * - `extractFileFromZip should throw when entry not found` — missing entry throws naming the target.
  * - `extractFileFromZip should match multiple possible paths` — matches any of multiple candidate paths.
  * - `extractFileFromZip should normalize backslash paths` — backslash-to-forward-slash normalization.
  * - `Path crc32ChecksumString should return 8-char hex for existing file` — valid checksum format.
@@ -171,6 +172,16 @@ class UtilsTest {
     }
 
     @Test
+    fun `isPhpVersionValid should attach IOException cause when binary cannot run`() {
+        val fake = File("/tmp/nonexistent-php-binary-xyz")
+        val exception =
+            assertFailsWith<ExternalBinaryInvalidException> {
+                isPhpVersionValid(fake, "7.1")
+            }
+        assertTrue(exception.cause is java.io.IOException, "expected IOException cause, got: ${exception.cause}")
+    }
+
+    @Test
     fun `isPhpVersionValid should compare major version correctly`() {
         val mock = createMockPhpBinary("8.0.0")
         assertTrue(isPhpVersionValid(mock, "7.0.0"))
@@ -233,19 +244,21 @@ class UtilsTest {
         val zipBytes = createZipInMemory("data/hello.txt" to "hello world")
         val outPath = Files.createTempFile("extract", ".txt")
 
-        val success = extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("data/hello.txt"))
-        assertTrue(success)
+        extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("data/hello.txt"))
         assertEquals("hello world", outPath.toFile().readText())
         outPath.toFile().delete()
     }
 
     @Test
-    fun `extractFileFromZip should return false when entry not found`() {
+    fun `extractFileFromZip should throw when entry not found`() {
         val zipBytes = createZipInMemory("a.txt" to "content")
         val outPath = Files.createTempFile("extract", ".txt")
 
-        val success = extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("missing.txt"))
-        assertFalse(success)
+        val exception =
+            assertFailsWith<ExternalBinaryNotFoundException> {
+                extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("missing.txt"))
+            }
+        assertTrue("missing.txt" in exception.message.orEmpty(), "message should name the target: ${exception.message}")
         outPath.toFile().delete()
     }
 
@@ -254,14 +267,12 @@ class UtilsTest {
         val zipBytes = createZipInMemory("linux/bin" to "elf-data")
         val outPath = Files.createTempFile("extract", ".bin")
 
-        val success =
-            extractFileFromZip(
-                ByteArrayInputStream(zipBytes),
-                outPath,
-                Path("windows/bin.exe"),
-                Path("linux/bin"),
-            )
-        assertTrue(success)
+        extractFileFromZip(
+            ByteArrayInputStream(zipBytes),
+            outPath,
+            Path("windows/bin.exe"),
+            Path("linux/bin"),
+        )
         assertEquals("elf-data", outPath.toFile().readText())
         outPath.toFile().delete()
     }
@@ -271,8 +282,7 @@ class UtilsTest {
         val zipBytes = createZipInMemory("dir\\file.txt" to "backslash-content")
         val outPath = Files.createTempFile("extract", ".txt")
 
-        val success = extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("dir/file.txt"))
-        assertTrue(success)
+        extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("dir/file.txt"))
         assertEquals("backslash-content", outPath.toFile().readText())
         outPath.toFile().delete()
     }

@@ -6,18 +6,15 @@ import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
-import kotlin.io.path.createTempFile
 import kotlin.io.path.div
 import kotlin.io.path.exists
 import kotlin.io.path.moveTo
 import kotlin.io.path.notExists
-import kotlin.io.path.writeText
 import kotlin.math.absoluteValue
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
 /** Abstract executable that runs in a working directory. */
-@Suppress("UNCHECKED_CAST")
 public abstract class AbcBinary {
     private val tmpDir = Path(System.getProperty("java.io.tmpdir"))
     public var workTmpDir: Path = tmpDir / "cobra" / "binaries" / this::class.java.simpleName
@@ -35,40 +32,50 @@ public abstract class AbcBinary {
             allArguments[name] = default
         }
 
+        @Suppress("UNCHECKED_CAST")
         override fun getValue(
             thisRef: Any,
             property: KProperty<*>,
         ): T = (allArguments[name] ?: throw ExternalBinaryArgumentMissException(name)) as T
 
+        /** Assigning null removes the argument; a later read throws [ExternalBinaryArgumentMissException]. */
         override fun setValue(
             thisRef: Any,
             property: KProperty<*>,
             value: T,
         ) {
-            value?.let { allArguments[name] = it }
+            if (value == null) allArguments.remove(name) else allArguments[name] = value
         }
     }
 
     // Delegated property backed by allOptions.
     protected inner class Option<T : Any?>(
         private val name: String,
-        default: T? = null,
+        private val default: T? = null,
     ) : ReadWriteProperty<Any, T> {
         init {
-            default?.let { allOptions[name] = default }
+            default?.let { allOptions[name] = it }
         }
 
+        @Suppress("UNCHECKED_CAST")
         override fun getValue(
             thisRef: Any,
             property: KProperty<*>,
-        ): T = allOptions[name] as T
+        ): T {
+            val value = allOptions[name]
+            if (value != null) return value as T
+            // A null default marks a nullable option: absence reads back as null.
+            if (default == null) return null as T
+            error("Option $name has no value: it was removed after being declared with default $default")
+        }
 
+        /** Assigning null removes the option, excluding it from the command line. */
         override fun setValue(
             thisRef: Any,
             property: KProperty<*>,
             value: T,
         ) {
-            value?.let { allOptions[name] = it }
+            if (value == null) allOptions.remove(name) else allOptions[name] = value
         }
     }
 
@@ -95,8 +102,8 @@ public abstract class AbcBinary {
         val isFinished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)
         if (!isFinished) {
             process.destroy()
-            val tmpFile = createTempFile().apply { writeText("timed out after $timeout") }
-            return BinaryResult(code = -1, output = tmpFile.toFile())
+            tmpStdOut.appendText("timed out after ${timeout.toMillis()} ms")
+            return BinaryResult(code = -1, output = tmpStdOut)
         }
         val exitCode = process.exitValue()
         if (doCacheOutput && exitCode == 0) {

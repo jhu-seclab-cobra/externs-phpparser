@@ -3,6 +3,7 @@ package edu.jhu.cobra.externs.phpparser
 import edu.jhu.cobra.externs.phpparser.abc.AbcBinary
 import edu.jhu.cobra.externs.phpparser.abc.BinaryResult
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
@@ -19,6 +20,9 @@ import kotlin.io.path.isRegularFile
 
 private val PHP_VERSION_OUTPUT_REGEX = Regex("""PHP (\d+\.\d+\.\d+)""")
 private val VERSION_FORMAT_REGEX = Regex("""^\d+(\.\d+){0,2}$""")
+
+// Liveness backstop for a wedged interpreter during the version probe.
+private const val VERSION_PROBE_TIMEOUT_SECONDS = 10L
 
 /**
  * Executes with temporary configuration that is rolled back after completion.
@@ -52,12 +56,16 @@ public fun searchBin(
     vararg possibleNames: String,
 ): File? = under.toFile().walkTopDown().firstOrNull { file -> file.isFile && file.name in possibleNames }
 
-/** Searches for an executable by name in the system PATH. */
+/**
+ * Searches for an executable by name in the system PATH.
+ *
+ * @return the first matching executable; null when none is found or the PATH variable is unset.
+ */
 public fun searchBin(name: String): File? {
     val osName = System.getProperty("os.name").lowercase()
     val isWinBin = osName.contains("win") && !(name.endsWith(".exe") || name.endsWith(".bat"))
     val exeNames = if (isWinBin) arrayOf("$name.exe", "$name.bat") else arrayOf(name)
-    val sysPath = runCatching { System.getenv("PATH") }.getOrNull() ?: return null
+    val sysPath = System.getenv("PATH") ?: return null
     return sysPath
         .splitToSequence(File.pathSeparator)
         .map { Path(it) }
@@ -67,26 +75,41 @@ public fun searchBin(name: String): File? {
 }
 
 /**
+ * Reads the version reported by `php -v`.
+ *
+ * @throws ExternalBinaryInvalidException when the binary cannot run or its output carries no version.
+ */
+private fun readPhpVersion(binary: File): String {
+    val output =
+        try {
+            val process = ProcessBuilder(binary.absolutePath, "-v").start()
+            if (!process.waitFor(VERSION_PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) process.destroyForcibly()
+            process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readLine() }
+        } catch (cause: IOException) {
+            throw ExternalBinaryInvalidException(binary.absolutePath, "could not run version probe", cause)
+        }
+    // Extract version from output like "PHP 7.4.10 (cli) ..."
+    val matchResult = output?.let { PHP_VERSION_OUTPUT_REGEX.find(it) }
+    return matchResult?.groupValues?.get(1)
+        ?: throw ExternalBinaryInvalidException(binary.absolutePath, "unparsable version output: ${output.orEmpty()}")
+}
+
+/**
  * Validates that the PHP binary version meets [minRequired].
  *
  * @param includeEqual true for >=, false for strict >
+ * @throws ExternalBinaryInvalidException when the binary cannot run, reports no parsable version,
+ * or [minRequired] is not a dotted version string.
  */
 public fun isPhpVersionValid(
     binary: File,
     minRequired: String,
     includeEqual: Boolean = true,
 ): Boolean {
-    val current =
-        runCatching {
-            val process = ProcessBuilder(binary.absolutePath, "-v").start()
-            if (!process.waitFor(10, TimeUnit.SECONDS)) process.destroyForcibly()
-            val output = process.inputStream.bufferedReader().readLine() ?: return@runCatching null
-            // Extract version from output like "PHP 7.4.10 (cli) ..."
-            val matchResult = PHP_VERSION_OUTPUT_REGEX.find(output) ?: return@runCatching null
-            matchResult.groupValues[1]
-        }.getOrNull() ?: ""
-    if (!VERSION_FORMAT_REGEX.matches(current)) throw ExternalBinaryInvalidException("Invalid version format: $current")
-    if (!VERSION_FORMAT_REGEX.matches(minRequired)) throw ExternalBinaryInvalidException("Invalid version format: $minRequired")
+    if (!VERSION_FORMAT_REGEX.matches(minRequired)) {
+        throw ExternalBinaryInvalidException(minRequired, "invalid version format")
+    }
+    val current = readPhpVersion(binary)
     val currentParts = current.split(".").map { it.toInt() }
     val requiredParts = minRequired.split(".").map { it.toInt() }
     // Compare versions
@@ -100,12 +123,16 @@ public fun isPhpVersionValid(
     return includeEqual
 }
 
-/** Extracts a file from a ZIP archive to [toOutPath]. */
+/**
+ * Extracts the first ZIP entry matching one of [fromZipPath] to [toOutPath].
+ *
+ * @throws ExternalBinaryNotFoundException when no entry matches any of [fromZipPath].
+ */
 public fun extractFileFromZip(
     zipInputStream: InputStream,
     toOutPath: Path,
     vararg fromZipPath: Path,
-): Boolean {
+) {
     toOutPath.createParentDirectories() // Create parent directories for the output file if they don't exist
 
     fun String.uniform() = replace(oldChar = '\\', newChar = '/')
@@ -115,9 +142,8 @@ public fun extractFileFromZip(
         do {
             inZipEntry = zip.nextEntry
         } while (inZipEntry != null && inZipEntry.name.uniform() !in uniTargets)
-        if (inZipEntry == null) return false // there is no target file existing in the zip file
+        if (inZipEntry == null) throw ExternalBinaryNotFoundException(uniTargets.joinToString(), "the zip archive")
         Files.copy(zip, toOutPath, REPLACE_EXISTING)
-        return true
     }
 }
 

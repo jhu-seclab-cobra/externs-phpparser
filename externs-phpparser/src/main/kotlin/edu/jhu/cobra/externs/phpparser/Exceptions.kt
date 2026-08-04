@@ -9,18 +9,20 @@ package edu.jhu.cobra.externs.phpparser
 public class ExternalBinaryNotFoundException(
     name: String,
     under: String? = null,
-) : RuntimeException("$name do not exist under ${under ?: "the system"}.")
+) : RuntimeException("$name does not exist under ${under ?: "the system"}.")
 
 /**
  * Thrown when a located executable fails validation.
  *
  * @param name the name of the invalid executable
  * @param reason an optional description of why the executable is invalid
+ * @param cause the underlying failure, when validation failed because of another error
  */
 public class ExternalBinaryInvalidException(
     name: String,
     reason: String? = null,
-) : RuntimeException("$name provided is invalid: $reason")
+    cause: Throwable? = null,
+) : RuntimeException("$name provided is invalid: $reason", cause)
 
 /**
  * Exception to indicate that an expected command line argument is missing.
@@ -28,4 +30,4 @@ public class ExternalBinaryInvalidException(
  */
 public class ExternalBinaryArgumentMissException(
     argName: String,
-) : Exception("Argument $argName has not been initialized. ")
+) : RuntimeException("Argument $argName has not been initialized.")
