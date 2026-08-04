@@ -57,18 +57,25 @@ abstract class AbcBinary {
         if (workTmpDir.notExists()) workTmpDir.createDirectories()
         val cmdArray = this.getCommandArray()
         val cmdUname = cmdArray.contentHashCode().absoluteValue.toString()
-        val tmpStdOut = workTmpDir.resolve(".$cmdUname.cache").toFile()
-        if (doCacheOutput && tmpStdOut.exists()) return BinaryResult(code = 0, output = tmpStdOut)
+        val cacheFile = workTmpDir.resolve(".$cmdUname.cache")
+        if (doCacheOutput && cacheFile.exists()) return BinaryResult(code = 0, output = cacheFile.toFile())
+        val tmpStdOut = workTmpDir.resolve(".$cmdUname.out").toFile()
         val pBuilder = ProcessBuilder(*cmdArray)
             .directory(workTmpDir.toFile())
-            .redirectOutput(tmpStdOut)
-            .redirectError(tmpStdOut)
             .redirectErrorStream(true)
+            .redirectOutput(tmpStdOut)
         val process = pBuilder.start()
         val isFinished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)
-        if (isFinished) return BinaryResult(code = process.exitValue(), output = tmpStdOut)
-        val tmpFile = createTempFile().apply { writeText("timed out after $timeout") }
-        return BinaryResult(code = -1, output = tmpFile.toFile()).also { process.destroy() }
-
+        if (!isFinished) {
+            process.destroy()
+            val tmpFile = createTempFile().apply { writeText("timed out after $timeout") }
+            return BinaryResult(code = -1, output = tmpFile.toFile())
+        }
+        val exitCode = process.exitValue()
+        if (doCacheOutput && exitCode == 0) {
+            tmpStdOut.toPath().moveTo(cacheFile, overwrite = true)
+            return BinaryResult(code = 0, output = cacheFile.toFile())
+        }
+        return BinaryResult(code = exitCode, output = tmpStdOut)
     }
 }

@@ -10,6 +10,7 @@ package edu.jhu.cobra.externs.phpparser.abc
  * - `should build command array with options and arguments` — getCommandArray includes options and args.
  * - `should execute and return success result` — execute returns code 0 with output file.
  * - `should return cached output on repeated execution` — second execute returns same cached file.
+ * - `should not replay failed run from cache` — a failed run is never cached as success.
  * - `should return code -1 on timeout` — timed-out process returns code -1.
  * - `should honor sub-minute timeout` — a sub-minute timeout waits instead of truncating to zero.
  * - `should restore config after executeWith` — arguments restored after executeWith.
@@ -27,6 +28,7 @@ import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
 import edu.jhu.cobra.externs.phpparser.executeWith
 import java.io.File
 import java.time.Duration
+import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -51,6 +53,10 @@ class AbcBinaryTest {
 
     class SleepBinary(private val seconds: Int = 60) : AbcBinary() {
         override fun getCommandArray(): Array<String> = arrayOf("sleep", seconds.toString())
+    }
+
+    class FailBinary : AbcBinary() {
+        override fun getCommandArray(): Array<String> = arrayOf("false")
     }
 
     @Test
@@ -117,6 +123,19 @@ class AbcBinaryTest {
         val result2 = binary.execute()
         assertEquals(0, result2.code)
         assertEquals(result1.output.absolutePath, result2.output.absolutePath)
+    }
+
+    @Test
+    fun `should not replay failed run from cache`() {
+        val binary = FailBinary()
+        binary.workTmpDir = createTempDirectory("abc-binary-test")
+        binary.doCacheOutput = true
+
+        val result1 = binary.execute()
+        assertTrue(result1.code != 0)
+
+        val result2 = binary.execute()
+        assertTrue(result2.code != 0)
     }
 
     @Test
