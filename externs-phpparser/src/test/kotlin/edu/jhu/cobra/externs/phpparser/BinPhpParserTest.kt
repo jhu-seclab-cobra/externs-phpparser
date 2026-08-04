@@ -91,7 +91,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class BinPhpParserTest {
-
     @Test
     fun `should initialize with default parameters`() {
         val parser = BinPhpParser()
@@ -154,10 +153,11 @@ class BinPhpParserTest {
     @Test
     fun `should parse PHP file with JSON dump`() {
         val phpFile = createTempPhpFile("<?php echo 'hello';")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+            }
 
         val result = parser.execute()
         assertEquals(0, result.code)
@@ -170,10 +170,11 @@ class BinPhpParserTest {
     @Test
     fun `should parse PHP file with S_EXPR dump`() {
         val phpFile = createTempPhpFile("<?php \$x = 1;")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.S_EXPR
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.S_EXPR
+            }
 
         val result = parser.execute()
         assertEquals(0, result.code)
@@ -184,10 +185,11 @@ class BinPhpParserTest {
     @Test
     fun `should parse PHP file with VAR dump`() {
         val phpFile = createTempPhpFile("<?php \$x = 1;")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.VAR
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.VAR
+            }
 
         val result = parser.execute()
         assertEquals(0, result.code)
@@ -198,11 +200,12 @@ class BinPhpParserTest {
     @Test
     fun `should include positions when doWithPositions is true`() {
         val phpFile = createTempPhpFile("<?php echo 1;")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-            doWithPositions = true
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+                doWithPositions = true
+            }
 
         val result = parser.execute()
         assertEquals(0, result.code)
@@ -212,11 +215,12 @@ class BinPhpParserTest {
     @Test
     fun `should include pretty print output`() {
         val phpFile = createTempPhpFile("<?php function foo() { return 1; }")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-            doPrettyPrint = true
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+                doPrettyPrint = true
+            }
 
         val result = parser.execute()
         assertEquals(0, result.code)
@@ -226,11 +230,12 @@ class BinPhpParserTest {
     @Test
     fun `should enable recovery mode`() {
         val phpFile = createTempPhpFile("<?php echo 'unclosed")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-            doWithRecovery = true
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+                doWithRecovery = true
+            }
 
         val result = parser.execute()
         assertTrue(result.output.exists())
@@ -240,11 +245,12 @@ class BinPhpParserTest {
     @Test
     fun `should set name resolution option in command array`() {
         val phpFile = createTempPhpFile("<?php namespace App; class Foo {}")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-            doResolveName = true
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+                doResolveName = true
+            }
 
         val cmd = parser.getCommandArray()
         assertTrue(cmd.contains("--resolve-names"))
@@ -254,11 +260,12 @@ class BinPhpParserTest {
     @Test
     fun `should enable column info`() {
         val phpFile = createTempPhpFile("<?php echo 1;")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-            doWithColInfo = true
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+                doWithColInfo = true
+            }
 
         val result = parser.execute()
         assertEquals(0, result.code)
@@ -268,15 +275,16 @@ class BinPhpParserTest {
     @Test
     fun `should include all boolean options in command array`() {
         val phpFile = createTempPhpFile("<?php echo 1;")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-            doPrettyPrint = true
-            doResolveName = true
-            doWithColInfo = true
-            doWithPositions = true
-            doWithRecovery = true
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+                doPrettyPrint = true
+                doResolveName = true
+                doWithColInfo = true
+                doWithPositions = true
+                doWithRecovery = true
+            }
 
         val cmd = parser.getCommandArray()
         assertTrue(cmd.contains("--pretty-print"))
@@ -291,10 +299,11 @@ class BinPhpParserTest {
     @Test
     fun `should produce correct command array with no options enabled`() {
         val phpFile = createTempPhpFile("<?php echo 1;")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+            }
 
         val cmd = parser.getCommandArray()
         assertTrue(cmd.size >= 4)
@@ -304,26 +313,28 @@ class BinPhpParserTest {
 
     @Test
     fun `should parse complex PHP code with class and function`() {
-        val phpFile = createTempPhpFile(
-            """
-            <?php
-            namespace App\Models;
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App\Models;
 
-            class User {
-                private string ${'$'}name;
-                public function __construct(string ${'$'}name) {
-                    ${'$'}this->name = ${'$'}name;
+                class User {
+                    private string ${'$'}name;
+                    public function __construct(string ${'$'}name) {
+                        ${'$'}this->name = ${'$'}name;
+                    }
+                    public function getName(): string {
+                        return ${'$'}this->name;
+                    }
                 }
-                public function getName(): string {
-                    return ${'$'}this->name;
-                }
+                """.trimIndent(),
+            )
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
             }
-            """.trimIndent()
-        )
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-        }
 
         val result = parser.execute()
         assertEquals(0, result.code)
@@ -336,11 +347,12 @@ class BinPhpParserTest {
     @Test
     fun `should use cache on second execution with same command`() {
         val phpFile = createTempPhpFile("<?php echo 1;")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-            doCacheOutput = true
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+                doCacheOutput = true
+            }
 
         val r1 = parser.execute()
         assertEquals(0, r1.code)
@@ -354,15 +366,17 @@ class BinPhpParserTest {
     fun `should restore config after executeWith`() {
         val phpFile1 = createTempPhpFile("<?php echo 1;")
         val phpFile2 = createTempPhpFile("<?php echo 2;")
-        val parser = BinPhpParser().apply {
-            target = phpFile1
-            dumpType = BinPhpParser.DumpType.S_EXPR
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile1
+                dumpType = BinPhpParser.DumpType.S_EXPR
+            }
 
-        val result = parser.executeWith {
-            target = phpFile2
-            dumpType = BinPhpParser.DumpType.JSON
-        }
+        val result =
+            parser.executeWith {
+                target = phpFile2
+                dumpType = BinPhpParser.DumpType.JSON
+            }
         assertNotNull(result)
         assertEquals(BinPhpParser.DumpType.S_EXPR, parser.dumpType)
         phpFile1.delete()
@@ -385,12 +399,13 @@ class BinPhpParserTest {
     @Test
     fun `should skip false boolean options in command array`() {
         val phpFile = createTempPhpFile("<?php echo 1;")
-        val parser = BinPhpParser().apply {
-            target = phpFile
-            dumpType = BinPhpParser.DumpType.JSON
-            doWithRecovery = true
-            doPrettyPrint = false
-        }
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+                doWithRecovery = true
+                doPrettyPrint = false
+            }
 
         val cmd = parser.getCommandArray()
         assertTrue(cmd.contains("--with-recovery"))
@@ -407,12 +422,13 @@ class BinPhpParserTest {
             every { isPhpVersionValid(any(), any(), any()) } returns true
             every { extractFileFromZip(any(), any(), *anyVararg()) } returns true
             every { searchBin(name = any<String>()) } returns sysPhp
-            val mockLoader = object : ClassLoader(Thread.currentThread().contextClassLoader) {
-                override fun getResourceAsStream(name: String): InputStream? {
-                    if (name.startsWith("php-cli-")) return null
-                    return super.getResourceAsStream(name)
+            val mockLoader =
+                object : ClassLoader(Thread.currentThread().contextClassLoader) {
+                    override fun getResourceAsStream(name: String): InputStream? {
+                        if (name.startsWith("php-cli-")) return null
+                        return super.getResourceAsStream(name)
+                    }
                 }
-            }
             val origLoader = Thread.currentThread().contextClassLoader
             Thread.currentThread().contextClassLoader = mockLoader
             try {
@@ -436,12 +452,13 @@ class BinPhpParserTest {
             every { isPhpVersionValid(any(), any(), any()) } returns true
             every { extractFileFromZip(any(), any(), *anyVararg()) } returns true
             every { searchBin(name = any<String>()) } returns fakeBin
-            val mockLoader = object : ClassLoader(Thread.currentThread().contextClassLoader) {
-                override fun getResourceAsStream(name: String): InputStream? {
-                    if (name.startsWith("php-cli-")) return null
-                    return super.getResourceAsStream(name)
+            val mockLoader =
+                object : ClassLoader(Thread.currentThread().contextClassLoader) {
+                    override fun getResourceAsStream(name: String): InputStream? {
+                        if (name.startsWith("php-cli-")) return null
+                        return super.getResourceAsStream(name)
+                    }
                 }
-            }
             val origLoader = Thread.currentThread().contextClassLoader
             Thread.currentThread().contextClassLoader = mockLoader
             try {
@@ -466,12 +483,13 @@ class BinPhpParserTest {
             every { isPhpVersionValid(any(), any(), any()) } returns false
             every { extractFileFromZip(any(), any(), *anyVararg()) } returns true
             every { searchBin(name = any<String>()) } returns fakeBin
-            val mockLoader = object : ClassLoader(Thread.currentThread().contextClassLoader) {
-                override fun getResourceAsStream(name: String): InputStream? {
-                    if (name.startsWith("php-cli-")) return null
-                    return super.getResourceAsStream(name)
+            val mockLoader =
+                object : ClassLoader(Thread.currentThread().contextClassLoader) {
+                    override fun getResourceAsStream(name: String): InputStream? {
+                        if (name.startsWith("php-cli-")) return null
+                        return super.getResourceAsStream(name)
+                    }
                 }
-            }
             val origLoader = Thread.currentThread().contextClassLoader
             Thread.currentThread().contextClassLoader = mockLoader
             try {
@@ -495,12 +513,13 @@ class BinPhpParserTest {
             every { isPhpVersionValid(any(), any(), any()) } returns true
             every { extractFileFromZip(any(), any(), *anyVararg()) } returns true
             every { searchBin(name = any<String>()) } returns null
-            val mockLoader = object : ClassLoader(Thread.currentThread().contextClassLoader) {
-                override fun getResourceAsStream(name: String): InputStream? {
-                    if (name.startsWith("php-cli-")) return null
-                    return super.getResourceAsStream(name)
+            val mockLoader =
+                object : ClassLoader(Thread.currentThread().contextClassLoader) {
+                    override fun getResourceAsStream(name: String): InputStream? {
+                        if (name.startsWith("php-cli-")) return null
+                        return super.getResourceAsStream(name)
+                    }
                 }
-            }
             val origLoader = Thread.currentThread().contextClassLoader
             Thread.currentThread().contextClassLoader = mockLoader
             try {
@@ -575,12 +594,13 @@ class BinPhpParserTest {
             every { isPhpVersionValid(any(), any(), any()) } returns true
             every { searchBin(name = any<String>()) } returns null
 
-            val exception = assertFailsWith<ExternalBinaryNotFoundException> {
-                BinPhpParser()
-            }
+            val exception =
+                assertFailsWith<ExternalBinaryNotFoundException> {
+                    BinPhpParser()
+                }
             assertTrue(
                 exception.message.orEmpty().contains("solarix"),
-                "Exception should name the unsupported OS, got: ${exception.message}"
+                "Exception should name the unsupported OS, got: ${exception.message}",
             )
         } finally {
             System.setProperty("os.name", origOsName)
@@ -592,14 +612,17 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should produce Name_FullyQualified for use imports`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App\Models;
-            use App\Services\Logger;
-            class User {
-                public function getLogger(): Logger { return new Logger(); }
-            }
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App\Models;
+                use App\Services\Logger;
+                class User {
+                    public function getLogger(): Logger { return new Logger(); }
+                }
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("Name_FullyQualified"), "use import should resolve to Name_FullyQualified")
         assertTrue(json.contains("App\\\\Services\\\\Logger"), "Logger should resolve to App\\Services\\Logger")
@@ -608,12 +631,15 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should produce Name_FullyQualified for use alias`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            use App\Services\Cache as C;
-            new C();
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                use App\Services\Cache as C;
+                new C();
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("App\\\\Services\\\\Cache"), "alias C should resolve to App\\Services\\Cache")
         phpFile.delete()
@@ -621,11 +647,14 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should populate namespacedName on class declarations`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App\Models;
-            class User {}
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App\Models;
+                class User {}
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("namespacedName"), "namespacedName should be populated")
         assertTrue(json.contains("App\\\\Models\\\\User"), "class User should have FQN App\\Models\\User")
@@ -634,12 +663,15 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should produce Name_FullyQualified for extends`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            class Foo {}
-            class Bar extends Foo {}
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                class Foo {}
+                class Bar extends Foo {}
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("Name_FullyQualified"), "extends should be resolved")
         assertTrue(json.contains("App\\\\Foo"), "extends Foo should resolve to App\\Foo")
@@ -648,11 +680,14 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should fully resolve namespace relative names`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App\Models;
-            ${'$'}x = new namespace\Sub();
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App\Models;
+                ${'$'}x = new namespace\Sub();
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("App\\\\Models\\\\Sub"), "namespace\\Sub should resolve to App\\Models\\Sub")
         assertFalse(json.contains("Name_Relative"), "Name_Relative should not appear after resolution")
@@ -661,30 +696,38 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should leave self as Name not Name_FullyQualified`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            class Foo {
-                public static function create(): self { return new self(); }
-            }
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                class Foo {
+                    public static function create(): self { return new self(); }
+                }
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains(""""self""""), "self should remain as literal 'self'")
-        assertFalse(json.contains("Name_FullyQualified") && json.contains(""""App\\Foo"""") && !json.contains(""""self"""""),
-            "self should NOT be resolved to Name_FullyQualified")
+        assertFalse(
+            json.contains("Name_FullyQualified") && json.contains(""""App\\Foo"""") && !json.contains(""""self"""""),
+            "self should NOT be resolved to Name_FullyQualified",
+        )
         phpFile.delete()
     }
 
     @Test
     fun `resolve should leave parent as Name not Name_FullyQualified`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            class Foo {}
-            class Bar extends Foo {
-                public function up(): parent { return new parent(); }
-            }
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                class Foo {}
+                class Bar extends Foo {
+                    public function up(): parent { return new parent(); }
+                }
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains(""""parent""""), "parent should remain as literal 'parent'")
         phpFile.delete()
@@ -692,13 +735,16 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should leave static as Name`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            class Foo {
-                public static function create(): static { return new static(); }
-            }
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                class Foo {
+                    public static function create(): static { return new static(); }
+                }
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains(""""static""""), "static should remain as literal 'static'")
         phpFile.delete()
@@ -706,11 +752,14 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should leave unqualified function call as Name with namespacedName`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            strlen("test");
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                strlen("test");
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("strlen"), "strlen should appear in output")
         assertTrue(json.contains("Name_FullyQualified"), "Should have a FullyQualified namespacedName for strlen")
@@ -719,11 +768,14 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should leave unqualified constant as Name with namespacedName`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            ${'$'}x = PHP_INT_MAX;
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                ${'$'}x = PHP_INT_MAX;
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("PHP_INT_MAX"), "PHP_INT_MAX should appear")
         phpFile.delete()
@@ -731,12 +783,15 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should preserve Stmt_Namespace and Stmt_Use nodes`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App\Models;
-            use App\Services\Logger;
-            class User {}
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App\Models;
+                use App\Services\Logger;
+                class User {}
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("Stmt_Namespace"), "Stmt_Namespace should remain")
         assertTrue(json.contains("Stmt_Use"), "Stmt_Use should remain")
@@ -745,13 +800,16 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should handle group use declarations`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            use App\Models\{User, Post};
-            new User();
-            new Post();
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                use App\Models\{User, Post};
+                new User();
+                new Post();
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("App\\\\Models\\\\User"), "User should resolve to App\\Models\\User")
         assertTrue(json.contains("App\\\\Models\\\\Post"), "Post should resolve to App\\Models\\Post")
@@ -760,13 +818,16 @@ class BinPhpParserTest {
 
     @Test
     fun `resolve should handle function and constant use imports`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            use function App\Utils\helper;
-            use const App\Config\VERSION;
-            helper();
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                use function App\Utils\helper;
+                use const App\Config\VERSION;
+                helper();
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = true)
         assertTrue(json.contains("App\\\\Utils\\\\helper"), "function import should resolve")
         phpFile.delete()
@@ -774,11 +835,14 @@ class BinPhpParserTest {
 
     @Test
     fun `without resolve namespacedName should be null`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            class Foo {}
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                class Foo {}
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = false)
         assertFalse(json.contains("Name_FullyQualified"), "Without resolver: no Name_FullyQualified")
         phpFile.delete()
@@ -789,20 +853,30 @@ class BinPhpParserTest {
     @Test
     fun `recovery should parse broken PHP without crashing`() {
         val phpFile = createTempPhpFile("<?php function foo( { return 1; }")
-        val result = BinPhpParser().apply {
-            target = phpFile; dumpType = BinPhpParser.DumpType.JSON; doWithRecovery = true
-        }.execute()
-        assertTrue(result.output.readText().isNotEmpty(),
-            "Recovery mode should produce output even for broken PHP")
+        val result =
+            BinPhpParser()
+                .apply {
+                    target = phpFile
+                    dumpType = BinPhpParser.DumpType.JSON
+                    doWithRecovery = true
+                }.execute()
+        assertTrue(
+            result.output.readText().isNotEmpty(),
+            "Recovery mode should produce output even for broken PHP",
+        )
         phpFile.delete()
     }
 
     @Test
     fun `recovery should handle unclosed string`() {
         val phpFile = createTempPhpFile("<?php echo 'unclosed;")
-        val result = BinPhpParser().apply {
-            target = phpFile; dumpType = BinPhpParser.DumpType.JSON; doWithRecovery = true
-        }.execute()
+        val result =
+            BinPhpParser()
+                .apply {
+                    target = phpFile
+                    dumpType = BinPhpParser.DumpType.JSON
+                    doWithRecovery = true
+                }.execute()
         assertTrue(result.output.readText().isNotEmpty(), "Recovery should produce output for unclosed string")
         phpFile.delete()
     }
@@ -812,9 +886,15 @@ class BinPhpParserTest {
     @Test
     fun `positions should include startFilePos and endFilePos in JSON`() {
         val phpFile = createTempPhpFile("<?php echo 1;")
-        val json = BinPhpParser().apply {
-            target = phpFile; dumpType = BinPhpParser.DumpType.JSON; doWithPositions = true
-        }.execute().output.readText()
+        val json =
+            BinPhpParser()
+                .apply {
+                    target = phpFile
+                    dumpType = BinPhpParser.DumpType.JSON
+                    doWithPositions = true
+                }.execute()
+                .output
+                .readText()
         assertTrue(json.contains("startFilePos"), "Should contain startFilePos")
         assertTrue(json.contains("endFilePos"), "Should contain endFilePos")
         phpFile.delete()
@@ -842,23 +922,26 @@ class BinPhpParserTest {
 
     @Test
     fun `JSON should encode all PHP statement types`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            namespace App;
-            use App\Foo;
-            class Bar extends Foo {
-                const X = 1;
-                public string ${'$'}name;
-                public function test(int ${'$'}a): string {
-                    if (${'$'}a > 0) { return "pos"; }
-                    else { return "neg"; }
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                namespace App;
+                use App\Foo;
+                class Bar extends Foo {
+                    const X = 1;
+                    public string ${'$'}name;
+                    public function test(int ${'$'}a): string {
+                        if (${'$'}a > 0) { return "pos"; }
+                        else { return "neg"; }
+                    }
                 }
-            }
-            function helper() {}
-            interface IFace {}
-            trait MyTrait {}
-            enum Color { case Red; case Blue; }
-        """.trimIndent())
+                function helper() {}
+                interface IFace {}
+                trait MyTrait {}
+                enum Color { case Red; case Blue; }
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = false)
         assertTrue(json.contains("Stmt_Class"), "Should contain class")
         assertTrue(json.contains("Stmt_ClassMethod"), "Should contain method")
@@ -875,14 +958,17 @@ class BinPhpParserTest {
 
     @Test
     fun `JSON should encode expression types`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            ${'$'}x = 1 + 2;
-            ${'$'}y = "hello" . " world";
-            ${'$'}z = [1, 2, 3];
-            ${'$'}w = (int)"42";
-            ${'$'}v = ${'$'}x > 0 ? "yes" : "no";
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                ${'$'}x = 1 + 2;
+                ${'$'}y = "hello" . " world";
+                ${'$'}z = [1, 2, 3];
+                ${'$'}w = (int)"42";
+                ${'$'}v = ${'$'}x > 0 ? "yes" : "no";
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = false)
         assertTrue(json.contains("Expr_BinaryOp_Plus") || json.contains("BinaryOp_Plus"), "Should contain addition")
         assertTrue(json.contains("Expr_BinaryOp_Concat") || json.contains("BinaryOp_Concat"), "Should contain concat")
@@ -894,14 +980,17 @@ class BinPhpParserTest {
 
     @Test
     fun `JSON should encode v5 scalar types correctly`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            ${'$'}i = 42;
-            ${'$'}f = 3.14;
-            ${'$'}s = "hello";
-            ${'$'}b = true;
-            ${'$'}n = null;
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                ${'$'}i = 42;
+                ${'$'}f = 3.14;
+                ${'$'}s = "hello";
+                ${'$'}b = true;
+                ${'$'}n = null;
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = false)
         assertTrue(json.contains("Scalar_Int"), "Int should be Scalar_Int (v5 rename from LNumber)")
         assertTrue(json.contains("Scalar_Float"), "Float should be Scalar_Float (v5 rename from DNumber)")
@@ -911,16 +1000,19 @@ class BinPhpParserTest {
 
     @Test
     fun `JSON should encode modifier flags correctly`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            class Foo {
-                public int ${'$'}a;
-                protected string ${'$'}b;
-                private float ${'$'}c;
-                public static function bar() {}
-                final public function baz() {}
-            }
-        """.trimIndent())
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                class Foo {
+                    public int ${'$'}a;
+                    protected string ${'$'}b;
+                    private float ${'$'}c;
+                    public static function bar() {}
+                    final public function baz() {}
+                }
+                """.trimIndent(),
+            )
         val json = parseJson(phpFile, resolve = false)
         assertTrue(json.contains("\"flags\""), "Should contain flags field for modifiers")
         phpFile.delete()
@@ -931,9 +1023,12 @@ class BinPhpParserTest {
     @Test
     fun `should parse empty PHP file`() {
         val phpFile = createTempPhpFile("<?php")
-        val result = BinPhpParser().apply {
-            target = phpFile; dumpType = BinPhpParser.DumpType.JSON
-        }.execute()
+        val result =
+            BinPhpParser()
+                .apply {
+                    target = phpFile
+                    dumpType = BinPhpParser.DumpType.JSON
+                }.execute()
         assertEquals(0, result.code)
         phpFile.delete()
     }
@@ -941,24 +1036,33 @@ class BinPhpParserTest {
     @Test
     fun `should parse PHP file with only HTML`() {
         val phpFile = createTempPhpFile("<html><body>Hello</body></html>")
-        val result = BinPhpParser().apply {
-            target = phpFile; dumpType = BinPhpParser.DumpType.JSON
-        }.execute()
+        val result =
+            BinPhpParser()
+                .apply {
+                    target = phpFile
+                    dumpType = BinPhpParser.DumpType.JSON
+                }.execute()
         assertEquals(0, result.code)
         phpFile.delete()
     }
 
     @Test
     fun `should parse PHP 8 features`() {
-        val phpFile = createTempPhpFile("""
-            <?php
-            enum Status { case Active; case Inactive; }
-            function test(int|string ${'$'}x): void {}
-            class Foo { public readonly string ${'$'}name; }
-        """.trimIndent())
-        val result = BinPhpParser().apply {
-            target = phpFile; dumpType = BinPhpParser.DumpType.JSON
-        }.execute()
+        val phpFile =
+            createTempPhpFile(
+                """
+                <?php
+                enum Status { case Active; case Inactive; }
+                function test(int|string ${'$'}x): void {}
+                class Foo { public readonly string ${'$'}name; }
+                """.trimIndent(),
+            )
+        val result =
+            BinPhpParser()
+                .apply {
+                    target = phpFile
+                    dumpType = BinPhpParser.DumpType.JSON
+                }.execute()
         assertEquals(0, result.code, "Should parse PHP 8 syntax")
         val json = result.output.readText()
         assertTrue(json.contains("Stmt_Enum"), "Should contain enum")
@@ -968,11 +1072,19 @@ class BinPhpParserTest {
 
     // ========== Helper ==========
 
-    private fun parseJson(phpFile: File, resolve: Boolean): String =
-        BinPhpParser().apply {
-            target = phpFile; dumpType = BinPhpParser.DumpType.JSON; doResolveName = resolve
-        }.execute().also { assertEquals(0, it.code, "Parse should succeed") }.output.readText()
+    private fun parseJson(
+        phpFile: File,
+        resolve: Boolean,
+    ): String =
+        BinPhpParser()
+            .apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+                doResolveName = resolve
+            }.execute()
+            .also { assertEquals(0, it.code, "Parse should succeed") }
+            .output
+            .readText()
 
-    private fun createTempPhpFile(code: String): File =
-        Files.createTempFile("test", ".php").toFile().apply { writeText(code) }
+    private fun createTempPhpFile(code: String): File = Files.createTempFile("test", ".php").toFile().apply { writeText(code) }
 }

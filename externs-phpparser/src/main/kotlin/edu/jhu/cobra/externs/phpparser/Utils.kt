@@ -11,7 +11,11 @@ import java.util.concurrent.TimeUnit
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
-import kotlin.io.path.*
+import kotlin.io.path.Path
+import kotlin.io.path.createParentDirectories
+import kotlin.io.path.exists
+import kotlin.io.path.inputStream
+import kotlin.io.path.isRegularFile
 
 private val PHP_VERSION_OUTPUT_REGEX = Regex("""PHP (\d+\.\d+\.\d+)""")
 private val VERSION_FORMAT_REGEX = Regex("""^\d+(\.\d+){0,2}$""")
@@ -29,8 +33,10 @@ fun <T : AbcBinary> T.executeWith(tmpConfig: T.() -> Unit): BinaryResult {
         tmpConfig(this)
         return execute()
     } finally {
-        allArguments.clear(); allArguments.putAll(argsBackup)
-        allOptions.clear(); allOptions.putAll(optionsBackup)
+        allArguments.clear()
+        allArguments.putAll(argsBackup)
+        allOptions.clear()
+        allOptions.putAll(optionsBackup)
     }
 }
 
@@ -41,8 +47,10 @@ fun <T : AbcBinary> T.executeWith(tmpConfig: T.() -> Unit): BinaryResult {
  * @param possibleNames Vararg of possible filenames to search for.
  * @return A [File] object representing the first matching file found; null if no file matches.
  */
-fun searchBin(under: Path, vararg possibleNames: String): File? =
-    under.toFile().walkTopDown().firstOrNull { file -> file.isFile && file.name in possibleNames }
+fun searchBin(
+    under: Path,
+    vararg possibleNames: String,
+): File? = under.toFile().walkTopDown().firstOrNull { file -> file.isFile && file.name in possibleNames }
 
 /** Searches for an executable by name in the system PATH. */
 fun searchBin(name: String): File? {
@@ -50,7 +58,8 @@ fun searchBin(name: String): File? {
     val isWinBin = osName.contains("win") && !(name.endsWith(".exe") || name.endsWith(".bat"))
     val exeNames = if (isWinBin) arrayOf("$name.exe", "$name.bat") else arrayOf(name)
     val sysPath = runCatching { System.getenv("PATH") }.getOrNull() ?: return null
-    return sysPath.splitToSequence(File.pathSeparator)
+    return sysPath
+        .splitToSequence(File.pathSeparator)
         .map { Path(it) }
         .filter { it.exists() }
         .mapNotNull { path -> searchBin(path, *exeNames) }
@@ -62,15 +71,20 @@ fun searchBin(name: String): File? {
  *
  * @param includeEqual true for >=, false for strict >
  */
-fun isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean = true): Boolean {
-    val current = runCatching {
-        val process = ProcessBuilder(binary.absolutePath, "-v").start()
-        if (!process.waitFor(10, TimeUnit.SECONDS)) process.destroyForcibly()
-        val output = process.inputStream.bufferedReader().readLine() ?: return@runCatching null
-        // Extract version from output like "PHP 7.4.10 (cli) ..."
-        val matchResult = PHP_VERSION_OUTPUT_REGEX.find(output) ?: return@runCatching null
-        matchResult.groupValues[1]
-    }.getOrNull() ?: ""
+fun isPhpVersionValid(
+    binary: File,
+    minRequired: String,
+    includeEqual: Boolean = true,
+): Boolean {
+    val current =
+        runCatching {
+            val process = ProcessBuilder(binary.absolutePath, "-v").start()
+            if (!process.waitFor(10, TimeUnit.SECONDS)) process.destroyForcibly()
+            val output = process.inputStream.bufferedReader().readLine() ?: return@runCatching null
+            // Extract version from output like "PHP 7.4.10 (cli) ..."
+            val matchResult = PHP_VERSION_OUTPUT_REGEX.find(output) ?: return@runCatching null
+            matchResult.groupValues[1]
+        }.getOrNull() ?: ""
     if (!VERSION_FORMAT_REGEX.matches(current)) throw ExternalBinaryInvalidException("Invalid version format: $current")
     if (!VERSION_FORMAT_REGEX.matches(minRequired)) throw ExternalBinaryInvalidException("Invalid version format: $minRequired")
     val currentParts = current.split(".").map { it.toInt() }
@@ -87,8 +101,13 @@ fun isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean =
 }
 
 /** Extracts a file from a ZIP archive to [toOutPath]. */
-fun extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path): Boolean {
+fun extractFileFromZip(
+    zipInputStream: InputStream,
+    toOutPath: Path,
+    vararg fromZipPath: Path,
+): Boolean {
     toOutPath.createParentDirectories() // Create parent directories for the output file if they don't exist
+
     fun String.uniform() = replace(oldChar = '\\', newChar = '/')
     ZipInputStream(zipInputStream).use { zip ->
         val uniTargets = fromZipPath.map { it.toString().uniform() }

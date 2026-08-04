@@ -14,7 +14,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ExceptionsTest {
-
     @Test
     fun `ExternalBinaryNotFoundException should include directory in message`() {
         val ex = ExternalBinaryNotFoundException("php", "/usr/local/bin")

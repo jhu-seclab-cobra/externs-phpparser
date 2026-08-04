@@ -3,7 +3,14 @@ package edu.jhu.cobra.externs.phpparser.abc
 import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
 import java.time.Duration
 import java.util.concurrent.TimeUnit
-import kotlin.io.path.*
+import kotlin.io.path.Path
+import kotlin.io.path.createDirectories
+import kotlin.io.path.createTempFile
+import kotlin.io.path.div
+import kotlin.io.path.exists
+import kotlin.io.path.moveTo
+import kotlin.io.path.notExists
+import kotlin.io.path.writeText
 import kotlin.math.absoluteValue
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
@@ -11,7 +18,6 @@ import kotlin.reflect.KProperty
 /** Abstract executable that runs in a working directory. */
 @Suppress("UNCHECKED_CAST")
 abstract class AbcBinary {
-
     private val tmpDir = Path(System.getProperty("java.io.tmpdir"))
     var workTmpDir = tmpDir / "cobra" / "binaries" / this::class.java.simpleName
     val allArguments: MutableMap<String, Any?> = mutableMapOf()
@@ -20,28 +26,47 @@ abstract class AbcBinary {
     var doCacheOutput: Boolean = false
 
     // Delegated property backed by allArguments.
-    protected inner class Argument<T : Any?>(private val name: String, default: T? = null) : ReadWriteProperty<Any, T> {
+    protected inner class Argument<T : Any?>(
+        private val name: String,
+        default: T? = null,
+    ) : ReadWriteProperty<Any, T> {
         init {
             allArguments[name] = default
         }
 
-        override fun getValue(thisRef: Any, property: KProperty<*>): T {
-            return (allArguments[name] ?: throw ExternalBinaryArgumentMissException(name)) as T
-        }
+        override fun getValue(
+            thisRef: Any,
+            property: KProperty<*>,
+        ): T = (allArguments[name] ?: throw ExternalBinaryArgumentMissException(name)) as T
 
-        override fun setValue(thisRef: Any, property: KProperty<*>, value: T) {
+        override fun setValue(
+            thisRef: Any,
+            property: KProperty<*>,
+            value: T,
+        ) {
             value?.let { allArguments[name] = it }
         }
     }
 
     // Delegated property backed by allOptions.
-    protected inner class Option<T : Any?>(private val name: String, default: T? = null) : ReadWriteProperty<Any, T> {
+    protected inner class Option<T : Any?>(
+        private val name: String,
+        default: T? = null,
+    ) : ReadWriteProperty<Any, T> {
         init {
             default?.let { allOptions[name] = default }
         }
 
-        override fun getValue(thisRef: Any, property: KProperty<*>): T = allOptions[name] as T
-        override fun setValue(thisRef: Any, property: KProperty<*>, value: T) {
+        override fun getValue(
+            thisRef: Any,
+            property: KProperty<*>,
+        ): T = allOptions[name] as T
+
+        override fun setValue(
+            thisRef: Any,
+            property: KProperty<*>,
+            value: T,
+        ) {
             value?.let { allOptions[name] = it }
         }
     }
@@ -60,10 +85,11 @@ abstract class AbcBinary {
         val cacheFile = workTmpDir.resolve(".$cmdUname.cache")
         if (doCacheOutput && cacheFile.exists()) return BinaryResult(code = 0, output = cacheFile.toFile())
         val tmpStdOut = workTmpDir.resolve(".$cmdUname.out").toFile()
-        val pBuilder = ProcessBuilder(*cmdArray)
-            .directory(workTmpDir.toFile())
-            .redirectErrorStream(true)
-            .redirectOutput(tmpStdOut)
+        val pBuilder =
+            ProcessBuilder(*cmdArray)
+                .directory(workTmpDir.toFile())
+                .redirectErrorStream(true)
+                .redirectOutput(tmpStdOut)
         val process = pBuilder.start()
         val isFinished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)
         if (!isFinished) {

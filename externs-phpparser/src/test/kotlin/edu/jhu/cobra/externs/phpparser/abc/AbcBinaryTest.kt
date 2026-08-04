@@ -26,7 +26,6 @@ package edu.jhu.cobra.externs.phpparser.abc
 
 import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
 import edu.jhu.cobra.externs.phpparser.executeWith
-import java.io.File
 import java.time.Duration
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
@@ -36,7 +35,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class AbcBinaryTest {
-
     class EchoBinary : AbcBinary() {
         var message: String by Argument<String>("message")
         var nullableArg: String? by Argument<String?>("nullableArg")
@@ -44,14 +42,17 @@ class AbcBinaryTest {
         var outputFormat: String by Option("--format", "text")
         var nullableOpt: String? by Option<String?>("--nullable")
 
-        override fun getCommandArray(): Array<String> = buildList {
-            add("echo")
-            for ((key, value) in allOptions) if (value is Boolean && value) add(key)
-            add(message)
-        }.toTypedArray()
+        override fun getCommandArray(): Array<String> =
+            buildList {
+                add("echo")
+                for ((key, value) in allOptions) if (value is Boolean && value) add(key)
+                add(message)
+            }.toTypedArray()
     }
 
-    class SleepBinary(private val seconds: Int = 60) : AbcBinary() {
+    class SleepBinary(
+        private val seconds: Int = 60,
+    ) : AbcBinary() {
         override fun getCommandArray(): Array<String> = arrayOf("sleep", seconds.toString())
     }
 
@@ -162,9 +163,10 @@ class AbcBinaryTest {
         val binary = EchoBinary()
         binary.message = "original"
 
-        val result = binary.executeWith {
-            message = "temporary"
-        }
+        val result =
+            binary.executeWith {
+                message = "temporary"
+            }
         assertNotNull(result)
         assertEquals("original", binary.message)
     }
@@ -175,10 +177,11 @@ class AbcBinaryTest {
         binary.message = "original"
         binary.verbose = false
 
-        val result = binary.executeWith {
-            message = "temp-msg"
-            verbose = true
-        }
+        val result =
+            binary.executeWith {
+                message = "temp-msg"
+                verbose = true
+            }
         assertEquals(0, result.code)
         assertTrue(result.output.readText().contains("temp-msg"))
         assertEquals(false, binary.verbose)
@@ -242,16 +245,19 @@ class AbcBinaryTest {
 
     @Test
     fun `executeWith restores state when execute throws`() {
-        val binary = object : AbcBinary() {
-            var arg: String by Argument<String>("arg")
-            var opt: Boolean by Option("--flag", false)
-            override fun getCommandArray(): Array<String> = arrayOf("echo")
-            override fun execute(): BinaryResult = throw RuntimeException("boom")
-        }
+        val binary =
+            object : AbcBinary() {
+                var arg: String by Argument<String>("arg")
+                var opt: Boolean by Option("--flag", false)
+
+                override fun getCommandArray(): Array<String> = arrayOf("echo")
+
+                override fun execute(): BinaryResult = error("boom")
+            }
         binary.arg = "original"
         binary.opt = false
 
-        assertFailsWith<RuntimeException> {
+        assertFailsWith<IllegalStateException> {
             binary.executeWith {
                 arg = "temporary"
                 opt = true

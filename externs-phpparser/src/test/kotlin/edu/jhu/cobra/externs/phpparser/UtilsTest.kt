@@ -52,7 +52,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class UtilsTest {
-
     // --- searchBin(under, possibleNames) ---
 
     @Test
@@ -152,10 +151,11 @@ class UtilsTest {
 
     @Test
     fun `isPhpVersionValid should throw when binary produces no version output`() {
-        val mock = File.createTempFile("mock-php-bad", ".sh").apply {
-            writeText("#!/bin/sh\necho 'not a version'")
-            setExecutable(true)
-        }
+        val mock =
+            File.createTempFile("mock-php-bad", ".sh").apply {
+                writeText("#!/bin/sh\necho 'not a version'")
+                setExecutable(true)
+            }
         assertFailsWith<ExternalBinaryInvalidException> {
             isPhpVersionValid(mock, "7.1")
         }
@@ -207,10 +207,11 @@ class UtilsTest {
 
     @Test
     fun `isPhpVersionValid should throw when binary outputs empty`() {
-        val mock = File.createTempFile("mock-php-empty", ".sh").apply {
-            writeText("#!/bin/sh\n")
-            setExecutable(true)
-        }
+        val mock =
+            File.createTempFile("mock-php-empty", ".sh").apply {
+                writeText("#!/bin/sh\n")
+                setExecutable(true)
+            }
         assertFailsWith<ExternalBinaryInvalidException> {
             isPhpVersionValid(mock, "7.1")
         }
@@ -253,10 +254,13 @@ class UtilsTest {
         val zipBytes = createZipInMemory("linux/bin" to "elf-data")
         val outPath = Files.createTempFile("extract", ".bin")
 
-        val success = extractFileFromZip(
-            ByteArrayInputStream(zipBytes), outPath,
-            Path("windows/bin.exe"), Path("linux/bin")
-        )
+        val success =
+            extractFileFromZip(
+                ByteArrayInputStream(zipBytes),
+                outPath,
+                Path("windows/bin.exe"),
+                Path("linux/bin"),
+            )
         assertTrue(success)
         assertEquals("elf-data", outPath.toFile().readText())
         outPath.toFile().delete()
