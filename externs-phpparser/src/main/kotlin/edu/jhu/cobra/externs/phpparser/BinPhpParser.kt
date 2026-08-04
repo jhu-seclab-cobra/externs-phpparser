@@ -8,6 +8,12 @@ import kotlin.io.path.div
 // Lowest interpreter version able to run the bundled php-parser PHAR.
 private const val MIN_PHP_VERSION = "7.1"
 
+// Interpreter release bundled as classpath zip resources.
+private const val PHP_CLI_VERSION = "8.4"
+
+// php-parser PHAR release bundled as a classpath zip resource.
+private const val PARSER_VERSION = "5.7.0"
+
 /**
  * Parses PHP files into ASTs using the php-parser binary.
  *
@@ -25,9 +31,6 @@ public class BinPhpParser(
         S_EXPR("--dump"),
         VAR("--var-dump"),
         JSON("--json-dump"),
-        ;
-
-        override fun toString(): String = opt
     }
 
     private val preloadOsUniformer =
@@ -49,56 +52,63 @@ public class BinPhpParser(
 
     private val preloadCrc32CheckSum =
         mapOf(
-            "php-cli-8.4-linux-aarch64" to "714a9a7b",
-            "php-cli-8.4-linux-x86_64" to "afd3bd14",
-            "php-cli-8.4-macos-aarch64" to "7a3d2fca",
-            "php-cli-8.4-macos-x86_64" to "3500f339",
-            "php-cli-8.4-windows-x86_64" to "ef39e63d",
-            "php-parser-5.7.0" to "95f828b5",
+            "php-cli-$PHP_CLI_VERSION-linux-aarch64" to "714a9a7b",
+            "php-cli-$PHP_CLI_VERSION-linux-x86_64" to "afd3bd14",
+            "php-cli-$PHP_CLI_VERSION-macos-aarch64" to "7a3d2fca",
+            "php-cli-$PHP_CLI_VERSION-macos-x86_64" to "3500f339",
+            "php-cli-$PHP_CLI_VERSION-windows-x86_64" to "ef39e63d",
+            "php-parser-$PARSER_VERSION" to "95f828b5",
         )
 
-    private val phpBinaryFile: File =
-        run {
-            if (phpBinary != null) {
-                if (!isPhpVersionValid(phpBinary, MIN_PHP_VERSION)) {
-                    throw ExternalBinaryInvalidException(phpBinary.absolutePath, "PHP version is below $MIN_PHP_VERSION")
-                }
-                return@run phpBinary
-            }
-            val rawOsName = System.getProperty("os.name", "unknown").lowercase()
-            val uniOsName = preloadOsUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawOsName } }
-            val rawArchName = System.getProperty("os.arch", "unknown").lowercase()
-            val uniArchName = preloadArchUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawArchName } }
-            if (uniOsName == null || uniArchName == null) {
-                return@run searchSystemPhp() ?: throw ExternalBinaryNotFoundException(
-                    "php$MIN_PHP_VERSION+",
-                    "no bundled build for os=$rawOsName arch=$rawArchName; sys paths",
-                )
-            }
-            val fileName = "php-cli-8.4-$uniOsName-$uniArchName"
-            val expFilePath = this.workTmpDir / fileName // the work tmp dir of the tool located in the tmp dir of sys
-            if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return@run expFilePath.toFile()
-            val loadStream = Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
-            if (loadStream == null) {
-                return@run searchSystemPhp()
-                    ?: throw ExternalBinaryNotFoundException("php$MIN_PHP_VERSION+", "resources or sys paths")
-            }
-            extractFileFromZip(loadStream, expFilePath, Path("php"), Path("php.exe"))
-            return@run expFilePath.toFile().apply { setExecutable(true) }
-        }
+    private val phpBinaryFile: File = resolvePhpBinary(phpBinary)
 
-    private val parserBinaryFile: File =
-        run {
-            if (parserBinary != null) return@run parserBinary
-            val fileName = "php-parser-5.7.0"
-            val expFilePath = this.workTmpDir / fileName
-            if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return@run expFilePath.toFile()
-            val loadStream =
-                Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
-                    ?: throw ExternalBinaryNotFoundException("$fileName.zip", "the classpath resources")
-            extractFileFromZip(loadStream, expFilePath, Path("php-parser.phar"))
-            return@run expFilePath.toFile()
+    private val parserBinaryFile: File = parserBinary ?: resolveBundledParser()
+
+    // Validates a caller-supplied interpreter or resolves one from the bundle or the system PATH.
+    private fun resolvePhpBinary(phpBinary: File?): File {
+        if (phpBinary != null) {
+            if (!isPhpVersionValid(phpBinary, MIN_PHP_VERSION)) {
+                throw ExternalBinaryInvalidException(phpBinary.absolutePath, "PHP version is below $MIN_PHP_VERSION")
+            }
+            return phpBinary
         }
+        val rawOsName = System.getProperty("os.name", "unknown").lowercase()
+        val uniOsName = preloadOsUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawOsName } }
+        val rawArchName = System.getProperty("os.arch", "unknown").lowercase()
+        val uniArchName = preloadArchUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawArchName } }
+        if (uniOsName == null || uniArchName == null) {
+            return searchSystemPhp() ?: throw ExternalBinaryNotFoundException(
+                "php$MIN_PHP_VERSION+",
+                "no bundled build for os=$rawOsName arch=$rawArchName; sys paths",
+            )
+        }
+        return resolveBundledPhp("php-cli-$PHP_CLI_VERSION-$uniOsName-$uniArchName")
+    }
+
+    // Reuses a checksum-verified extraction or re-extracts the bundled interpreter for this platform.
+    private fun resolveBundledPhp(fileName: String): File {
+        val expFilePath = this.workTmpDir / fileName // the work tmp dir of the tool located in the tmp dir of sys
+        if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return expFilePath.toFile()
+        val loadStream = Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
+        if (loadStream == null) {
+            return searchSystemPhp()
+                ?: throw ExternalBinaryNotFoundException("php$MIN_PHP_VERSION+", "resources or sys paths")
+        }
+        extractFileFromZip(loadStream, expFilePath, Path("php"), Path("php.exe"))
+        return expFilePath.toFile().apply { setExecutable(true) }
+    }
+
+    // Reuses a checksum-verified extraction or re-extracts the bundled php-parser PHAR.
+    private fun resolveBundledParser(): File {
+        val fileName = "php-parser-$PARSER_VERSION"
+        val expFilePath = this.workTmpDir / fileName
+        if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return expFilePath.toFile()
+        val loadStream =
+            Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
+                ?: throw ExternalBinaryNotFoundException("$fileName.zip", "the classpath resources")
+        extractFileFromZip(loadStream, expFilePath, Path("php-parser.phar"))
+        return expFilePath.toFile()
+    }
 
     private fun searchSystemPhp(): File? = searchBin("php")?.takeIf { isPhpVersionValid(it, MIN_PHP_VERSION) }
 
@@ -132,7 +142,7 @@ public class BinPhpParser(
             add(phpBinaryFile.absolutePath)
             add(parserBinaryFile.absolutePath)
             for ((key, value) in allOptions) if (value is Boolean && value) add(key)
-            add(dumpType.toString())
+            add(dumpType.opt)
             add(target.absolutePath)
         }.toTypedArray()
 }
