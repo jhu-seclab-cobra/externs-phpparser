@@ -65,9 +65,9 @@ abstract class AbcBinary {
             .redirectError(tmpStdOut)
             .redirectErrorStream(true)
         val process = pBuilder.start()
-        val isFinished = process.waitFor(timeout.toMinutes(), TimeUnit.MINUTES)
+        val isFinished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)
         if (isFinished) return BinaryResult(code = process.exitValue(), output = tmpStdOut)
-        val tmpFile = createTempFile().apply { writeText("timed out after $timeout minutes") }
+        val tmpFile = createTempFile().apply { writeText("timed out after $timeout") }
         return BinaryResult(code = -1, output = tmpFile.toFile()).also { process.destroy() }
 
     }

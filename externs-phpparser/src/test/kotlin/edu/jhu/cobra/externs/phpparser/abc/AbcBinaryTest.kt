@@ -11,6 +11,7 @@ package edu.jhu.cobra.externs.phpparser.abc
  * - `should execute and return success result` — execute returns code 0 with output file.
  * - `should return cached output on repeated execution` — second execute returns same cached file.
  * - `should return code -1 on timeout` — timed-out process returns code -1.
+ * - `should honor sub-minute timeout` — a sub-minute timeout waits instead of truncating to zero.
  * - `should restore config after executeWith` — arguments restored after executeWith.
  * - `should use temporary config during executeWith` — temporary config used during execution.
  * - `should return null for option with null default` — Option with no default returns null.
@@ -48,8 +49,8 @@ class AbcBinaryTest {
         }.toTypedArray()
     }
 
-    class SleepBinary : AbcBinary() {
-        override fun getCommandArray(): Array<String> = arrayOf("sleep", "60")
+    class SleepBinary(private val seconds: Int = 60) : AbcBinary() {
+        override fun getCommandArray(): Array<String> = arrayOf("sleep", seconds.toString())
     }
 
     @Test
@@ -126,6 +127,15 @@ class AbcBinaryTest {
         val result = binary.execute()
         assertEquals(-1, result.code)
         assertTrue(result.output.exists())
+    }
+
+    @Test
+    fun `should honor sub-minute timeout`() {
+        val binary = SleepBinary(seconds = 1)
+        binary.timeout = Duration.ofSeconds(30)
+
+        val result = binary.execute()
+        assertEquals(0, result.code)
     }
 
     @Test
