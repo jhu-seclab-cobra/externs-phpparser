@@ -65,7 +65,9 @@ ktlint {
 }
 
 detekt {
-    config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+    // Resolve the repository's own config even when this module is embedded
+    // as a subproject of an enclosing build.
+    config.setFrom(files("${projectDir.parentFile}/config/detekt/detekt.yml"))
     buildUponDefaultConfig = true
     parallel = true
 }
