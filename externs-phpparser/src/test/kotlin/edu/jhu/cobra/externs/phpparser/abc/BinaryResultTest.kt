@@ -14,7 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
-class BinaryResultTest {
+internal class BinaryResultTest {
     @Test
     fun `should store code and output file`() {
         val file = File("/tmp/output.txt")

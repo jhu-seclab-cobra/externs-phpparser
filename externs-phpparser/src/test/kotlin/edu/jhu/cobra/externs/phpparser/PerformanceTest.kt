@@ -21,7 +21,7 @@ import kotlin.io.path.Path
 import kotlin.math.absoluteValue
 
 @Tag("performance")
-class PerformanceTest {
+internal class PerformanceTest {
     companion object {
         private const val WARMUP_ITERATIONS = 5
         private const val MEASUREMENT_ITERATIONS = 7
