@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlinx.kover)
+    alias(libs.plugins.ktlint)
+    alias(libs.plugins.detekt)
     `java-library`
     `maven-publish`
 }
@@ -33,7 +35,11 @@ tasks.register<Test>("performanceTest") {
 
 kotlin {
     jvmToolchain { languageVersion.set(JavaLanguageVersion.of(sourceJavaVersion.majorVersion)) }
-    compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(targetJavaVersion.toString()) }
+    compilerOptions {
+        jvmTarget =
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget
+                .fromTarget(targetJavaVersion.toString())
+    }
 }
 
 java {
@@ -47,3 +53,19 @@ publishing {
     publications { create<MavenPublication>("maven") { from(components["java"]) } }
 }
 
+ktlint {
+    version.set("1.5.0")
+    verbose.set(true)
+    android.set(false)
+    outputToConsole.set(true)
+    filter {
+        exclude("**/generated/**")
+        exclude("**/build/**")
+    }
+}
+
+detekt {
+    config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+    buildUponDefaultConfig = true
+    parallel = true
+}
