@@ -5,6 +5,12 @@ javaSource = "8"
 javaTarget = "8"
 ktlint = "14.0.1"
 detekt = "1.23.8"
+junit = "5.10.2"
+mockk = "1.13.13"
+
+[libraries]
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
