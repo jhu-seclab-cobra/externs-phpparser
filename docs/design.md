@@ -5,7 +5,7 @@
 - **Classes**: `AbcBinary`, `BinPhpParser`, `BinaryResult`
 - **Relationships**: `BinPhpParser` extends `AbcBinary`, `AbcBinary.execute()` returns `BinaryResult`
 - **Abstract**: `AbcBinary` (implemented by `BinPhpParser`)
-- **Exceptions**: `ExternalBinaryNotFoundException` extends `RuntimeException`, `ExternalBinaryInvalidException` extends `RuntimeException`, `ExternalBinaryArgumentMissException` extends `Exception`
+- **Exceptions**: `ExternalBinaryNotFoundException`, `ExternalBinaryInvalidException`, `ExternalBinaryArgumentMissException` — all extend `RuntimeException`
 - **Dependency roles**: Data holders: `BinaryResult`, `BinPhpParser.DumpType`. Orchestrator: `BinPhpParser`. Helper: `AbcBinary` (process lifecycle framework, inputs by subclass override).
 
 `AbcBinary` and `BinaryResult` live in the `binary` subpackage; everything else lives in the root package `edu.jhu.cobra.externs.phpparser`. `AbcBinary` defines the process execution framework: argument/option management via delegated properties, command array construction (abstract), process spawning bounded by a fixed liveness backstop, and output caching. `BinPhpParser` extends it with PHP-specific binary resolution (bundled extraction with CRC32 or system PATH search), platform normalization, and parser CLI flag assembly. `BinaryResult` is a passive data holder pairing exit code with output file reference. Stateless top-level helpers are split by responsibility: `ExecutableSearch.kt` (binary lookup), `PhpVersionValidation.kt` (interpreter version probing and comparison), `ArchiveExtraction.kt` (ZIP extraction and CRC32 checksums), and `ScopedExecution.kt` (execution under temporary configuration).
@@ -56,8 +56,6 @@ val result = parser.execute()
 if (result.code == 0) println(result.output.readText())
 ```
 
----
-
 ### BinPhpParser
 
 **Responsibility**: PHP-specific binary resolver and AST parser that configures and executes the php-parser binary.
@@ -93,8 +91,6 @@ if (result.code == 0) println(result.output.readText())
 **Construction (init)**:
 - PHP binary resolution: user-provided (with version validation >= 7.1) > bundled ZIP extraction (with CRC32 check) > system PATH search. Throws `ExternalBinaryNotFoundException` if all fail.
 - Parser binary resolution: user-provided > bundled ZIP extraction (with CRC32 check). Throws `ExternalBinaryNotFoundException` if extraction fails.
-
----
 
 ### BinaryResult
 
@@ -176,7 +172,7 @@ if (result.code == 0) println(result.output.readText())
 |-----------|-----------|-------------|
 | `ExternalBinaryNotFoundException` | `RuntimeException` | Binary resolution fails — not found in provided path, bundled resources, or system PATH. Raised during `BinPhpParser` construction. |
 | `ExternalBinaryInvalidException` | `RuntimeException` | A binary exists but fails validation — invalid version format, unrunnable or hung version probe, unparsable version output, or an extracted interpreter that cannot be marked executable. |
-| `ExternalBinaryArgumentMissException` | `Exception` | A required `Argument` delegate is read before being set. Raised when accessing `target` without assignment. |
+| `ExternalBinaryArgumentMissException` | `RuntimeException` | A required `Argument` delegate is read before being set. Raised when accessing `target` without assignment. |
 
 ---
 
