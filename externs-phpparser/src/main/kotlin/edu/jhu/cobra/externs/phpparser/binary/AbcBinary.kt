@@ -6,6 +6,7 @@ import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
+import kotlin.io.path.createTempFile
 import kotlin.io.path.div
 import kotlin.io.path.exists
 import kotlin.io.path.moveTo
@@ -107,14 +108,15 @@ public abstract class AbcBinary {
         val cmdUname = cacheKeyOf(cmdArray)
         val cacheFile = workTmpDir.resolve(".$cmdUname.cache")
         if (doCacheOutput && cacheFile.exists()) return BinaryResult(code = 0, output = cacheFile.toFile())
-        val tmpStdOut = workTmpDir.resolve(".$cmdUname.out").toFile()
+        // Unique per execution: concurrent runs of the same command must not share an output file.
+        val tmpStdOut = createTempFile(workTmpDir, ".$cmdUname", ".out").toFile()
         val pBuilder =
             ProcessBuilder(*cmdArray)
                 .directory(workTmpDir.toFile())
                 .redirectErrorStream(true)
                 .redirectOutput(tmpStdOut)
         val process = pBuilder.start()
-        val isFinished = process.waitFor(executionTimeoutMillis, TimeUnit.MILLISECONDS)
+        val isFinished = awaitCompletion(process)
         if (!isFinished) {
             reapTimedOutProcess(process)
             tmpStdOut.appendText("timed out after $executionTimeoutMillis ms")
@@ -144,6 +146,16 @@ public abstract class AbcBinary {
             allOptions.putAll(optionsSnapshot)
         }
     }
+
+    // Waits up to the execution backstop; the spawned process must not outlive an interrupted wait.
+    private fun awaitCompletion(process: Process): Boolean =
+        try {
+            process.waitFor(executionTimeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (interrupt: InterruptedException) {
+            reapTimedOutProcess(process)
+            Thread.currentThread().interrupt()
+            throw interrupt
+        }
 
     // Terminates gracefully first, then forcibly, and reaps before returning.
     private fun reapTimedOutProcess(process: Process) {
