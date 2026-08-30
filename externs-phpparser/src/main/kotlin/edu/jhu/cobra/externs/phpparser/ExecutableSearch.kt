@@ -27,7 +27,7 @@ public fun searchBin(
  * @return the first matching executable; null when none is found or the PATH variable is unset.
  */
 public fun searchBin(name: String): File? {
-    val osName = System.getProperty("os.name").lowercase()
+    val osName = System.getProperty("os.name", "unknown").lowercase()
     val isWinBin = osName.contains("win") && !(name.endsWith(".exe") || name.endsWith(".bat"))
     val exeNames = if (isWinBin) arrayOf("$name.exe", "$name.bat") else arrayOf(name)
     val sysPath = System.getenv("PATH") ?: return null
