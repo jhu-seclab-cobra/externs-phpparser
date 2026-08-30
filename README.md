@@ -2,7 +2,7 @@
 
 > Kotlin/JVM wrapper for nikic/PHP-Parser -- parses PHP source into ASTs.
 
-Parses PHP source files into AST text (S-expression, JSON, or var-dump) by managing a bundled or system PHP binary behind a single `execute()` call. Bundles [PHP-Parser 5.7.0](https://github.com/nikic/PHP-Parser).
+Parses PHP source files into AST text (S-expression, JSON, or var-dump) via a managed PHP binary behind `execute()`.
 
 [![codecov](https://codecov.io/gh/jhu-seclab-cobra/externs-phpparser/branch/main/graph/badge.svg)](https://codecov.io/gh/jhu-seclab-cobra/externs-phpparser)
 ![Kotlin JVM](https://img.shields.io/badge/Kotlin%20JVM-2.0.1%20%7C%20JVM%201.8%2B-blue?logo=kotlin)
@@ -24,7 +24,7 @@ dependencies {
 }
 ```
 
-Bundled PHP platforms (no system PHP needed): macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64. Other platforms require PHP 7.1+ on system PATH.
+Bundles [PHP-Parser 5.7.0](https://github.com/nikic/PHP-Parser) and PHP for: macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64 (no system PHP needed). Other platforms require PHP 7.1+ on system PATH.
 
 ## Usage
 
@@ -57,7 +57,7 @@ val result = parser.executeWith {
 
 **`BinaryResult(code: Int, output: File)`** -- exit code 0 = success, -1 = timeout.
 
-**`executeWith { }`** -- temporary config override, restores state via try-finally.
+**`executeWith { }`** -- temporary config override, restores state on return and on exception.
 
 **`searchBin(name): File?`** -- find executables on system PATH.
 
@@ -67,10 +67,10 @@ val result = parser.executeWith {
 
 ## Documentation
 
-- [Concepts](docs/idea.md) -- problem context, data flow, core concepts, scenarios
-- [Design](docs/design.md) -- class/type specifications, function signatures, validation rules
+- [Concepts](docs/concept.md) -- problem context, data flow, core concepts, scenarios
+- [Design](docs/design.md) -- class/type specifications, function signatures, exception types
 - [Implementation Notes](docs/impl.md) -- APIs, libraries, developer instructions
-- [PHP-Parser AST Reference](docs/php_parser_ast.md) -- all AST node types, subnodes, JSON format
+- [PHP-Parser AST Reference](docs/research/php_parser_ast.md) -- all AST node types, subnodes, JSON format
 
 ## For Agents
 
@@ -90,4 +90,4 @@ Agent-consumable documentation index at `docs/llms.txt` ([llmstxt.org](https://l
 
 ## License
 
-GPL-2.0-only
+`GPL-2.0` — see [LICENSE](./LICENSE).

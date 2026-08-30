@@ -48,14 +48,6 @@
 - **Output**: The value returned by `block`.
 - **Errors**: Propagates any exception from `block`; state is restored regardless.
 
-**Example usage**:
-```kotlin
-val parser = BinPhpParser()
-parser.target = File("example.php")
-val result = parser.execute()
-if (result.code == 0) println(result.output.readText())
-```
-
 ### BinPhpParser
 
 **Responsibility**: PHP-specific binary resolver and AST parser that configures and executes the php-parser binary.
@@ -91,6 +83,8 @@ if (result.code == 0) println(result.output.readText())
 **Construction (init)**:
 - PHP binary resolution: user-provided (with version validation >= 7.1) > bundled ZIP extraction (with CRC32 check) > system PATH search. Throws `ExternalBinaryNotFoundException` if all fail.
 - Parser binary resolution: user-provided > bundled ZIP extraction (with CRC32 check). Throws `ExternalBinaryNotFoundException` if extraction fails.
+- A pre-existing extraction whose CRC32 matches the preloaded checksum is reused; extraction is skipped.
+- An extracted interpreter that cannot be marked executable throws `ExternalBinaryInvalidException`.
 
 ### BinaryResult
 
@@ -173,26 +167,3 @@ if (result.code == 0) println(result.output.readText())
 | `ExternalBinaryNotFoundException` | `RuntimeException` | Binary resolution fails — not found in provided path, bundled resources, or system PATH. Raised during `BinPhpParser` construction. |
 | `ExternalBinaryInvalidException` | `RuntimeException` | A binary exists but fails validation — invalid version format, unrunnable or hung version probe, unparsable version output, or an extracted interpreter that cannot be marked executable. |
 | `ExternalBinaryArgumentMissException` | `RuntimeException` | A required `Argument` delegate is read before being set. Raised when accessing `target` without assignment. |
-
----
-
-## Validation Rules
-
-### BinPhpParser (construction)
-- PHP binary: must be a valid PHP >= 7.1 executable (validated via `isPhpVersionValid`), or a bundled binary whose CRC32 matches the preloaded checksum.
-- Parser binary: must be extractable from bundled ZIP with matching CRC32, or provided by user.
-- If all resolution strategies fail, construction throws `ExternalBinaryNotFoundException`.
-
-### isPhpVersionValid
-- Both `current` (extracted) and `minRequired` version strings must match `^\d+(\.\d+){0,2}$`. Invalid format throws `ExternalBinaryInvalidException`.
-
-### AbcBinary.Argument (read)
-- Value must be non-null. Null value throws `ExternalBinaryArgumentMissException`.
-
-### AbcBinary.execute
-- `workTmpDir` is created if absent (no validation — delegates to filesystem).
-- Liveness backstop enforced: process destroyed after the fixed `EXECUTION_TIMEOUT_MILLIS` backstop, returns code -1. The backstop is a constant, never per-run configuration.
-
-### BinPhpParser (bundled extraction)
-- An extracted interpreter that cannot be marked executable throws `ExternalBinaryInvalidException`.
-- A pre-existing extraction whose CRC32 matches the preloaded checksum is reused; extraction is skipped.

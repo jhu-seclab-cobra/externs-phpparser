@@ -38,7 +38,7 @@ if (result.code == 0) println(result.output.readText())
 
 **`execute(): BinaryResult`** — Run the external binary. Returns cached result if `doCacheOutput` is `true` and cache hit.
 
-Execution is bounded by a fixed internal 1-minute backstop. Process destroyed on timeout. Not configurable.
+Execution times out after 1 minute and returns code `-1`. The timeout is not configurable.
 
 **`doCacheOutput: Boolean`** — Cache output by command content hash. Default `false`.
 
@@ -80,38 +80,10 @@ Execution is bounded by a fixed internal 1-minute backstop. Process destroyed on
 | Positions | `doWithPositions` | `--with-positions` | Add `startFilePos`/`endFilePos` to node dumps |
 | Recovery | `doWithRecovery` | `--with-recovery` | Parse broken PHP — inserts `Expr_Error` placeholder nodes |
 
-## Name Resolution (`--resolve-names`)
-
-Applies `NodeVisitor\NameResolver`. Resolves most names to `Name_FullyQualified`:
-
-| Resolved (Name_FullyQualified) | Not resolved (Name) |
-|-------------------------------|---------------------|
-| `use` imports and aliases | `self` — needs class context |
-| Qualified names (`Models\User`) | `parent` — needs extends context |
-| `namespace\` relative names | `static` — runtime late binding |
-| `extends`/`implements` class refs | Unqualified functions (`strlen`) |
-| `new ClassName()` | Unqualified constants (`PHP_INT_MAX`) |
-
-Unqualified functions/constants get a `namespacedName` attribute with the namespace-prefixed version. `Stmt_Namespace` and `Stmt_Use` nodes remain in AST.
-
-## Configuration
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `target` | `File` | (required) | PHP source file to parse |
-| `dumpType` | `DumpType` | `S_EXPR` | Output format |
-| `doPrettyPrint` | `Boolean` | `false` | Pretty-print AST |
-| `doResolveName` | `Boolean` | `false` | Resolve names to FQN |
-| `doWithColInfo` | `Boolean` | `false` | Column info in errors |
-| `doWithPositions` | `Boolean` | `false` | File positions in dump |
-| `doWithRecovery` | `Boolean` | `false` | Error recovery mode |
-| `doCacheOutput` | `Boolean` | `false` | Cache by command hash |
-
 ## Gotchas
 
 - Construction resolves binaries eagerly. Fails fast if no PHP available.
-- `executeWith { }` restores state via try-finally.
-- Cache key is a hash of the command array. Changing file content without changing path does not invalidate.
+- `executeWith { }` restores state on return and on exception.
+- Output caching keys on the command, not file content. Changing file content without changing its path does not invalidate the cache.
 - Bundled PHP: macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64.
-- `DumpType.JSON` output is prefixed with `====> File ...` header lines. Skip non-JSON prefix before parsing.
-- `--resolve-names` does not resolve `self`/`parent`/`static` or unqualified function/constant names.
+- `--resolve-names` does not resolve `self`/`parent`/`static` or unqualified function/constant names. Full resolution behavior: [php-parser-guide.md](php-parser-guide.md).

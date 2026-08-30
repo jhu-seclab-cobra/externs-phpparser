@@ -6,13 +6,16 @@
 
 ```kotlin
 val parser = BinPhpParser().apply {
-    dumpType = BinPhpParser.DumpType.JSON
-    doResolveName = true              // resolve use/namespace names to FQN
+    dumpType = BinPhpParser.DumpType.JSON   // machine-readable
+    doResolveName = true                     // FQN for all class/interface refs
+    doWithRecovery = true                    // parse broken PHP gracefully
 }
 parser.target = File("src/Example.php")
 val result = parser.execute()
 val json = result.output.readText()   // JSON AST array
 ```
+
+This is the recommended configuration for static analysis.
 
 ## Parsing Pipeline
 
@@ -26,16 +29,6 @@ PHP source file
         → JSON serializer (if --json-dump)
   → BinaryResult(code, output: File)
     → JSON text: array of Stmt nodes
-```
-
-## Recommended Configuration for Static Analysis
-
-```kotlin
-val parser = BinPhpParser().apply {
-    dumpType = BinPhpParser.DumpType.JSON   // machine-readable
-    doResolveName = true                     // FQN for all class/interface refs
-    doWithRecovery = true                    // parse broken PHP gracefully
-}
 ```
 
 ## JSON Output Format
