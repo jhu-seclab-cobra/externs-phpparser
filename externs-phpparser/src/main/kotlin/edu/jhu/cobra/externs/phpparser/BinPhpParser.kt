@@ -87,7 +87,7 @@ public class BinPhpParser(
 
     // Reuses a checksum-verified extraction or re-extracts the bundled interpreter for this platform.
     private fun resolveBundledPhp(fileName: String): File {
-        val expFilePath = this.workTmpDir / fileName // the work tmp dir of the tool located in the tmp dir of sys
+        val expFilePath = this.workTmpDir / fileName
         if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return expFilePath.toFile()
         val loadStream = Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
         if (loadStream == null) {

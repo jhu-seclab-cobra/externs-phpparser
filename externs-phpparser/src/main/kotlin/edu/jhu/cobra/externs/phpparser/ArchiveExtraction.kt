@@ -34,7 +34,7 @@ public fun extractFileFromZip(
     toOutPath: Path,
     vararg fromZipPath: Path,
 ) {
-    toOutPath.createParentDirectories() // Create parent directories for the output file if they don't exist
+    toOutPath.createParentDirectories()
 
     fun String.uniform() = replace(oldChar = '\\', newChar = '/')
     ZipInputStream(zipInputStream).use { zip ->
@@ -70,10 +70,8 @@ private fun stageAndPublish(
 /** CRC32 checksum as lowercase hex string, or null if the file does not exist. */
 public val Path.crc32ChecksumString: String?
     get() {
-        // Validate file exists and is a regular file
         if (!exists() || !isRegularFile()) return null
         val crc = CRC32()
-        // Use NIO for platform-independent binary reading
         inputStream().use { inputStream ->
             var bytesRead: Int
             val buffer = ByteArray(CRC_BUFFER_SIZE)
@@ -81,7 +79,6 @@ public val Path.crc32ChecksumString: String?
                 crc.update(buffer, 0, bytesRead)
             }
         }
-        // Format as 8-character lowercase hex string with leading zeros
         return "%08x".format(crc.value)
     }
 

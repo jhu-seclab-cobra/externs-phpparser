@@ -71,13 +71,11 @@ public fun isPhpVersionValid(
     val current = readPhpVersion(binary)
     val currentParts = current.split(".").map { it.toInt() }
     val requiredParts = minRequired.split(".").map { it.toInt() }
-    // Compare versions
     for (i in 0..<VERSION_COMPONENT_COUNT) {
         val curPart = currentParts.getOrElse(i) { 0 }
         val reqPart = requiredParts.getOrElse(i) { 0 }
         if (curPart > reqPart) return true
         if (curPart < reqPart) return false
     }
-    // All parts are equal
     return includeEqual
 }
