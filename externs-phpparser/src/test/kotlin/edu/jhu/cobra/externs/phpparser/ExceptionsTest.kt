@@ -10,6 +10,10 @@ package edu.jhu.cobra.externs.phpparser
  * - `ExternalBinaryInvalidException should carry cause` — constructor cause is preserved.
  * - `ExternalBinaryArgumentMissException should include argument name` — message includes argument name, no trailing space.
  * - `ExternalBinaryArgumentMissException should be a RuntimeException` — unchecked like its siblings.
+ * - `ExternalBinaryNotFoundException should expose name and under as properties` — handlers read
+ *   structured context instead of parsing the message.
+ * - `ExternalBinaryInvalidException should expose name and reason as properties` — structured context.
+ * - `ExternalBinaryArgumentMissException should expose argName as property` — structured context.
  */
 
 import java.io.IOException
@@ -60,5 +64,25 @@ internal class ExceptionsTest {
     fun `ExternalBinaryArgumentMissException should be a RuntimeException`() {
         val ex: Exception = ExternalBinaryArgumentMissException("target")
         assertTrue(ex is RuntimeException, "expected unchecked exception, got: ${ex::class}")
+    }
+
+    @Test
+    fun `ExternalBinaryNotFoundException should expose name and under as properties`() {
+        val ex = ExternalBinaryNotFoundException("php", "/usr/local/bin")
+        assertEquals("php", ex.name)
+        assertEquals("/usr/local/bin", ex.under)
+    }
+
+    @Test
+    fun `ExternalBinaryInvalidException should expose name and reason as properties`() {
+        val ex = ExternalBinaryInvalidException("php", "version mismatch")
+        assertEquals("php", ex.name)
+        assertEquals("version mismatch", ex.reason)
+    }
+
+    @Test
+    fun `ExternalBinaryArgumentMissException should expose argName as property`() {
+        val ex = ExternalBinaryArgumentMissException("target")
+        assertEquals("target", ex.argName)
     }
 }

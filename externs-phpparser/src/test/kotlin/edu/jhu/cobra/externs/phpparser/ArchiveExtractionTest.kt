@@ -10,18 +10,25 @@ package edu.jhu.cobra.externs.phpparser
  * - `extractFileFromZip should leave no staging file behind` — the staged sibling is gone after extraction.
  * - `extractFileFromZip should never expose a partial target to concurrent readers` — a reader racing
  *   the extraction only ever observes the old or the new content, never a missing or partial file.
+ * - `extractFileFromZip should throw for an empty archive` — zero-entry ZIP is a not-found, not a crash.
+ * - `extractFileFromZip should propagate IOException for a truncated archive` — corrupt input fails
+ *   the extraction and publishes nothing.
+ * - `extractFileFromZip should extract a zero-byte entry as an empty file` — degenerate entry size.
  * - `Path crc32ChecksumString should return 8-char hex for existing file` — valid checksum format.
  * - `Path crc32ChecksumString should return null for nonexistent file` — null for missing file.
  * - `Path crc32ChecksumString should return null for directory` — null for directory path.
  * - `Path crc32ChecksumString should be deterministic` — same file produces same checksum.
  * - `File crc32ChecksumString should delegate to Path extension` — File extension matches Path extension.
  * - `File crc32ChecksumString should return null for nonexistent file` — null for missing file via File extension.
+ * - `Path crc32ChecksumString should match the CRC32 check value` — "123456789" hashes to cbf43926.
+ * - `Path crc32ChecksumString should return zero for an empty file` — empty input hashes to 00000000.
  */
 
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
@@ -124,6 +131,43 @@ internal class ArchiveExtractionTest {
         assertContentEquals(newContent, Files.readAllBytes(target))
     }
 
+    @Test
+    fun `extractFileFromZip should throw for an empty archive`() {
+        val zipBytes = createZipInMemory()
+        val outPath = tempDir.resolve("extract.bin")
+
+        assertFailsWith<ExternalBinaryNotFoundException> {
+            extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("bin"))
+        }
+    }
+
+    @Test
+    fun `extractFileFromZip should propagate IOException for a truncated archive`() {
+        // Incompressible payload keeps the compressed entry large, so half the bytes cut mid-entry.
+        val payload = ByteArray(65536) { (it * 31 % 251).toByte() }
+        val zipBytes = createZipInMemory("bin" to payload)
+        val truncated = zipBytes.copyOf(zipBytes.size / 2)
+        val outPath = tempDir.resolve("extract.bin")
+
+        assertFailsWith<IOException> {
+            extractFileFromZip(ByteArrayInputStream(truncated), outPath, Path("bin"))
+        }
+        assertEquals(
+            emptyList(),
+            tempDir.listDirectoryEntries(),
+            "a failed extraction must publish nothing and leave no staging file",
+        )
+    }
+
+    @Test
+    fun `extractFileFromZip should extract a zero-byte entry as an empty file`() {
+        val zipBytes = createZipInMemory("empty.bin" to ByteArray(0))
+        val outPath = tempDir.resolve("extract.bin")
+
+        extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("empty.bin"))
+        assertEquals(0L, Files.size(outPath))
+    }
+
     // Returns a description of an observed non-atomic state, or null when the read was consistent.
     private fun observeRaceViolation(
         target: Path,
@@ -186,6 +230,20 @@ internal class ArchiveExtractionTest {
     fun `File crc32ChecksumString should return null for nonexistent file`() {
         val fake = File("/tmp/nonexistent-crc32-file-xyz")
         assertNull(fake.crc32ChecksumString)
+    }
+
+    @Test
+    fun `Path crc32ChecksumString should match the CRC32 check value`() {
+        // "123456789" -> cbf43926 is the standard CRC-32 check value.
+        val tempFile = Files.createTempFile(tempDir, "crc-vector", ".txt")
+        tempFile.toFile().writeText("123456789")
+        assertEquals("cbf43926", tempFile.crc32ChecksumString)
+    }
+
+    @Test
+    fun `Path crc32ChecksumString should return zero for an empty file`() {
+        val tempFile = Files.createTempFile(tempDir, "crc-empty", ".txt")
+        assertEquals("00000000", tempFile.crc32ChecksumString)
     }
 
     // --- helpers ---
