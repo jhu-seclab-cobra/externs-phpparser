@@ -21,13 +21,23 @@ package edu.jhu.cobra.externs.phpparser
  * - `isPhpVersionValid should handle single-digit minRequired` — single-component version.
  * - `isPhpVersionValid should throw when binary outputs empty` — empty output throws.
  * - `isPhpVersionValid should handle two-part minRequired against three-part current` — mixed lengths.
+ * - `isPhpVersionValid should throw on malformed minRequired` — empty, four-component, and
+ *   empty-component strings all fall outside the documented dotted-version format.
+ * - `readPhpVersion should parse real-world php -v lines` — suffixed versions (RC, distro build
+ *   metadata) still yield the numeric triple.
+ * - `isPhpVersionValid should throw on minRequired component beyond Int range` — an oversized
+ *   component is a format error per design.md, not a NumberFormatException.
  */
 
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.ValueSource
 import java.io.File
 import java.io.IOException
 import java.nio.file.Path
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -163,6 +173,36 @@ internal class PhpVersionValidationTest {
         val mock = createMockPhpBinary("8.2.0")
         assertTrue(isPhpVersionValid(mock, "8.2"))
         assertFalse(isPhpVersionValid(mock, "8.2", includeEqual = false))
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["", "1.2.3.4", "1..2", "1.2."])
+    fun `isPhpVersionValid should throw on malformed minRequired`(minRequired: String) {
+        val mock = createMockPhpBinary("8.0.0")
+        assertFailsWith<ExternalBinaryInvalidException> {
+            isPhpVersionValid(mock, minRequired)
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "PHP 8.3.0RC1 (cli), 8.3.0",
+        "PHP 8.1.2-1ubuntu2.14 (cli) (built: Aug 18 2023 11:41:11) (NTS), 8.1.2",
+    )
+    fun `readPhpVersion should parse real-world php -v lines`(
+        line: String,
+        expected: String,
+    ) {
+        val mock = createMockScript("mock-php-line-${line.hashCode()}.sh", "#!/bin/sh\necho '$line'")
+        assertEquals(expected, readPhpVersion(mock))
+    }
+
+    @Test
+    fun `isPhpVersionValid should throw on minRequired component beyond Int range`() {
+        val mock = createMockPhpBinary("8.0.0")
+        assertFailsWith<ExternalBinaryInvalidException> {
+            isPhpVersionValid(mock, "9999999999")
+        }
     }
 
     // --- helpers ---

@@ -13,6 +13,13 @@ internal const val VERSION_PROBE_TIMEOUT_SECONDS = 10L
 // Dotted version strings compare over at most major.minor.patch components.
 private const val VERSION_COMPONENT_COUNT = 3
 
+// A component that overflows Int is outside the documented dotted-version format.
+private fun parseVersionParts(version: String): List<Int> =
+    version.split(".").map { component ->
+        component.toIntOrNull()
+            ?: throw ExternalBinaryInvalidException(version, "version component out of range: $component")
+    }
+
 // Runs `binary -v` and returns its first output line; a hung probe is force-killed and reported.
 private fun probeVersionLine(
     binary: File,
@@ -69,8 +76,8 @@ public fun isPhpVersionValid(
         throw ExternalBinaryInvalidException(minRequired, "invalid version format")
     }
     val current = readPhpVersion(binary)
-    val currentParts = current.split(".").map { it.toInt() }
-    val requiredParts = minRequired.split(".").map { it.toInt() }
+    val currentParts = parseVersionParts(current)
+    val requiredParts = parseVersionParts(minRequired)
     for (i in 0..<VERSION_COMPONENT_COUNT) {
         val curPart = currentParts.getOrElse(i) { 0 }
         val reqPart = requiredParts.getOrElse(i) { 0 }
