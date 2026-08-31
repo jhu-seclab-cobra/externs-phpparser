@@ -15,13 +15,27 @@ package edu.jhu.cobra.externs.phpparser.binary
  * - `timeout output should stay inside workTmpDir` — no orphan temp file outside the working directory.
  * - `should complete within backstop without timing out` — a process finishing before the backstop succeeds.
  * - `should skip creating workTmpDir if it already exists` — no error on existing dir.
+ * - `concurrent executions of the same command should not share an output file` — each run stages
+ *   its own stdout file, so identical concurrent commands never clobber each other.
+ * - `interrupted wait should reap the process and preserve the interrupt flag` — an interrupt during
+ *   the wait kills the spawned process, restores the thread's interrupt flag, and rethrows.
+ * - `should propagate IOException when the executable does not exist` — spawn failure surfaces as
+ *   the OS-level exception, not a BinaryResult.
+ * - `arguments with spaces and unicode should pass through unmodified` — array-based spawning does
+ *   no shell re-quoting.
+ * - `cache keys should distinguish arguments differing only in whitespace` — quoting-sensitive
+ *   commands never collide on one cache entry.
  */
 
 import org.junit.jupiter.api.io.TempDir
+import java.io.IOException
 import java.nio.file.Path
 import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
@@ -146,6 +160,112 @@ internal class AbcBinaryExecutionTest {
 
         val result = binary.execute()
         assertEquals(0, result.code)
+    }
+
+    @Test
+    fun `concurrent executions of the same command should not share an output file`() {
+        val binary = EchoBinary()
+        binary.workTmpDir = tempDir
+        binary.message = "concurrent"
+
+        val results = ConcurrentLinkedQueue<BinaryResult>()
+        val workers = (1..4).map { thread { results.add(binary.execute()) } }
+        workers.forEach { it.join() }
+
+        assertEquals(4, results.size)
+        results.forEach { result ->
+            assertEquals(0, result.code)
+            assertTrue(result.output.readText().contains("concurrent"))
+        }
+        assertEquals(
+            4,
+            results.map { it.output.absolutePath }.toSet().size,
+            "identical concurrent commands must each write their own output file",
+        )
+    }
+
+    @Test
+    fun `interrupted wait should reap the process and preserve the interrupt flag`() {
+        val marker = "cobra-abc-interrupt-${UUID.randomUUID()}"
+        val binary = StubbornBinary(marker, executionTimeoutMillis = 60_000, terminationGraceMillis = 200)
+        binary.workTmpDir = tempDir
+
+        var thrown: Throwable? = null
+        var flagPreserved = false
+        val worker =
+            thread {
+                try {
+                    binary.execute()
+                } catch (expected: InterruptedException) {
+                    thrown = expected
+                    flagPreserved = Thread.currentThread().isInterrupted
+                }
+            }
+        awaitProcessWithMarker(marker)
+        worker.interrupt()
+        worker.join()
+
+        val survivor = ProcessBuilder("pgrep", "-f", marker).start()
+        survivor.waitFor()
+        val stillAlive = survivor.exitValue() == 0
+        // Reap any survivor so a failure does not leak a 60s process into the environment.
+        ProcessBuilder("pkill", "-9", "-f", marker).start().waitFor()
+        assertTrue(thrown is InterruptedException, "execute must rethrow the interrupt, got: $thrown")
+        assertTrue(flagPreserved, "the thread's interrupt flag must be restored before rethrowing")
+        assertFalse(stillAlive, "the spawned process must not outlive an interrupted wait")
+    }
+
+    // Bounded poll until the marker process is running, so the interrupt lands during the wait.
+    private fun awaitProcessWithMarker(marker: String) {
+        repeat(50) {
+            val probe = ProcessBuilder("pgrep", "-f", marker).start()
+            probe.waitFor()
+            if (probe.exitValue() == 0) return
+            Thread.sleep(100)
+        }
+        error("process with marker $marker never appeared")
+    }
+
+    @Test
+    fun `should propagate IOException when the executable does not exist`() {
+        val binary = MissingBinary()
+        binary.workTmpDir = tempDir
+        assertFailsWith<IOException> { binary.execute() }
+    }
+
+    @Test
+    fun `arguments with spaces and unicode should pass through unmodified`() {
+        val message = """hello world "quoted" 中文 ${'$'};(0)[1]{2}"""
+        val binary = EchoBinary()
+        binary.workTmpDir = tempDir
+        binary.message = message
+
+        val result = binary.execute()
+        assertEquals(0, result.code)
+        assertTrue(
+            result.output.readText().contains(message),
+            "array-based spawning must not re-quote or split the argument",
+        )
+    }
+
+    @Test
+    fun `cache keys should distinguish arguments differing only in whitespace`() {
+        val binary = EchoBinary()
+        binary.workTmpDir = tempDir
+        binary.doCacheOutput = true
+
+        binary.message = "a b"
+        val result1 = binary.execute()
+        binary.message = "a  b"
+        val result2 = binary.execute()
+
+        assertEquals(0, result1.code)
+        assertEquals(0, result2.code)
+        assertNotEquals(
+            result1.output.absolutePath,
+            result2.output.absolutePath,
+            "whitespace-only differences must produce distinct cache entries",
+        )
     }
 
     @Test

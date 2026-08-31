@@ -7,6 +7,7 @@ package edu.jhu.cobra.externs.phpparser.binary
  * - [SleepBinary] — sleeps; tests override the execution backstop to observe timeouts quickly.
  * - [FailBinary] — exits non-zero; exercises failure paths.
  * - [StubbornBinary] — ignores SIGTERM; exercises forcible reaping with shortened backstops.
+ * - [MissingBinary] — command names a nonexistent executable; exercises the spawn-failure path.
  */
 
 internal class EchoBinary : AbcBinary() {
@@ -33,6 +34,10 @@ internal class SleepBinary(
 
 internal class FailBinary : AbcBinary() {
     override fun getCommandArray(): Array<String> = arrayOf("false")
+}
+
+internal class MissingBinary : AbcBinary() {
+    override fun getCommandArray(): Array<String> = arrayOf("/nonexistent-cobra-binary-xyz")
 }
 
 // Ignores SIGTERM; only SIGKILL ends it. The marker makes the process findable via pgrep.
