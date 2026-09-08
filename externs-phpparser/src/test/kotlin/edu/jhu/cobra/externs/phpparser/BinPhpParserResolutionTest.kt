@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for [BinPhpParser] binary resolution — bundled extraction, system PATH fallback, platform detection.
  * Resolution helpers are mocked (mockkStatic on the ExecutableSearch/PhpVersionValidation/ArchiveExtraction
  * facades) to force each resolution branch.

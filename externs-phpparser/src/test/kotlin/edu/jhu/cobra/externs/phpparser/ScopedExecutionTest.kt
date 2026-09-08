@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for [executeWith] — temporary configuration scoped to one execution.
  *
  * - `should restore config after executeWith` — arguments restored after executeWith.

@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for [BinPhpParser] JSON output format — node types, attributes, positions, and scalar encoding.
  *
  * - `positions should include startFilePos and endFilePos in JSON` — position fields

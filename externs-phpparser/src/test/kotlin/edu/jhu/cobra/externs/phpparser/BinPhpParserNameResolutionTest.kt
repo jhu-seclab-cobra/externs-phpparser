@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for [BinPhpParser] NameResolver behavior (--resolve-names).
  *
  * - `resolve should produce Name_FullyQualified for use imports` — use import resolved

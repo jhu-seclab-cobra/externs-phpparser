@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for executable lookup in ExecutableSearch.kt — directory children and system PATH.
  *
  * - `searchBin under directory should find executable direct child` — finds executable at root of directory.

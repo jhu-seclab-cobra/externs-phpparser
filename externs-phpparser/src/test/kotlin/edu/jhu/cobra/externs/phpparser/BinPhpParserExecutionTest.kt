@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for [BinPhpParser] execution — dump output, caching, recovery, and edge-case inputs.
  *
  * Execution:

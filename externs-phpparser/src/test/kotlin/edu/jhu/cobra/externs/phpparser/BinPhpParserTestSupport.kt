@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Shared helpers for the BinPhpParser test files.
  *
  * - `createPhpFile` — writes PHP source into a caller-owned temp directory.

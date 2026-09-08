@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for ArchiveExtraction.kt — ZIP entry extraction, atomic publication, and CRC32 checksums.
  *
  * - `extractFileFromZip should extract matching entry` — extracts target file from ZIP.

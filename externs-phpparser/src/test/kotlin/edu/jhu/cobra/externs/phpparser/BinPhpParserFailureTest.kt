@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for BinPhpParser failure paths — malformed input, missing targets, and the output header contract.
  *
  * - `should fail on broken PHP without recovery` — a syntax error without --with-recovery exits non-zero.

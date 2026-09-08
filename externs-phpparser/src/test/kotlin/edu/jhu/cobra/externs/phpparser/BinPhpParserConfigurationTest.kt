@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for [BinPhpParser] configuration — dump types and command array construction.
  *
  * - `should default to S_EXPR dump type` — default dumpType

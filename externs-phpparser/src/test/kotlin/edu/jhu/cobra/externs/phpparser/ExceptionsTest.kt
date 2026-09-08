@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for exception types — message formatting and constructor behavior.
  *
  * - `ExternalBinaryNotFoundException should include directory in message` — message includes directory path.

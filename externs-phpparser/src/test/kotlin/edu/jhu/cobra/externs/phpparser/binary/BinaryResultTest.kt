@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser.binary
 
-/**
+/*
  * Tests for [BinaryResult] — immutable data holder for execution outcomes.
  *
  * - `should store code and output file` — constructor stores code and output.

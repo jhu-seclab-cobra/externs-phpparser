@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Microbenchmarks for hot-path utility functions — measures throughput and compares alternatives.
  *
  * - `P1-1 benchmark extractFileFromZip` — ZIP extraction throughput (1K ops).

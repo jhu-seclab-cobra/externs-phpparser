@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for [BinPhpParser] construction — caller-supplied binaries and default initialization.
  *
  * - `should initialize with default parameters` — bundled/system PHP resolved

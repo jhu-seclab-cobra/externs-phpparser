@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser.binary
 
-/**
+/*
  * Tests for [AbcBinary.execute] — process spawning, caching, and the liveness backstop.
  *
  * - `should execute and return success result` — execute returns code 0 with output file.

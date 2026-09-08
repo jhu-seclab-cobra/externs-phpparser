@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser
 
-/**
+/*
  * Tests for PHP version validation in PhpVersionValidation.kt — probe, parse, and comparison.
  *
  * - `isPhpVersionValid should return true when current version is higher` — higher version passes.

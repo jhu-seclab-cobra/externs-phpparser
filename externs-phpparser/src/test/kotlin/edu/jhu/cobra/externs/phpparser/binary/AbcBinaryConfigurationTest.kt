@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser.binary
 
-/**
+/*
  * Tests for [AbcBinary] configuration — Argument/Option delegates and command assembly.
  *
  * - `should initialize with default backstops and cache settings` — verifies backstop constants and cache (off).
