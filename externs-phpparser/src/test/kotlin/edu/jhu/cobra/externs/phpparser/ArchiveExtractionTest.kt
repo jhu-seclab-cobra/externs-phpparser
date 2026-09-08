@@ -14,6 +14,9 @@ package edu.jhu.cobra.externs.phpparser
  * - `extractFileFromZip should propagate IOException for a truncated archive` — corrupt input fails
  *   the extraction and publishes nothing.
  * - `extractFileFromZip should extract a zero-byte entry as an empty file` — degenerate entry size.
+ * - `extractFileFromZip should create missing parent directories` — destination directories are created.
+ * - `extractFileFromZip should close the input stream when no entry matches` — the stream is closed
+ *   on the not-found exit path as well as on success.
  * - `Path crc32ChecksumString should return 8-char hex for existing file` — valid checksum format.
  * - `Path crc32ChecksumString should return null for nonexistent file` — null for missing file.
  * - `Path crc32ChecksumString should return null for directory` — null for directory path.
@@ -49,6 +52,19 @@ import kotlin.test.assertTrue
 private const val RACE_NEW_CONTENT_SIZE = 16 shl 20
 
 private const val RACE_OLD_CONTENT_SIZE = 1 shl 20
+
+// Records whether close() reached the underlying stream.
+private class CloseTrackingInputStream(
+    bytes: ByteArray,
+) : ByteArrayInputStream(bytes) {
+    var closed: Boolean = false
+        private set
+
+    override fun close() {
+        closed = true
+        super.close()
+    }
+}
 
 internal class ArchiveExtractionTest {
     @TempDir
@@ -129,6 +145,26 @@ internal class ArchiveExtractionTest {
         extractor.join()
         assertNull(violation, "reader racing the extraction observed a non-atomic state")
         assertContentEquals(newContent, Files.readAllBytes(target))
+    }
+
+    @Test
+    fun `extractFileFromZip should create missing parent directories`() {
+        val zipBytes = createZipInMemory("bin" to "payload".toByteArray())
+        val outPath = tempDir.resolve("nested").resolve("deeper").resolve("extract.bin")
+
+        extractFileFromZip(ByteArrayInputStream(zipBytes), outPath, Path("bin"))
+        assertEquals("payload", outPath.toFile().readText())
+    }
+
+    @Test
+    fun `extractFileFromZip should close the input stream when no entry matches`() {
+        val stream = CloseTrackingInputStream(createZipInMemory("a.txt" to "content".toByteArray()))
+        val outPath = tempDir.resolve("extract.bin")
+
+        assertFailsWith<ExternalBinaryNotFoundException> {
+            extractFileFromZip(stream, outPath, Path("missing"))
+        }
+        assertTrue(stream.closed, "input stream must be closed on the not-found exit path")
     }
 
     @Test

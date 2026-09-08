@@ -1,6 +1,6 @@
 package edu.jhu.cobra.externs.phpparser.binary
 
-/**
+/*
  * Shared fixture binaries for [AbcBinary] tests.
  *
  * - [EchoBinary] — echoes a message; exercises Argument/Option delegates and command assembly.

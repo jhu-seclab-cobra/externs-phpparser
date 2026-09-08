@@ -5,9 +5,10 @@ package edu.jhu.cobra.externs.phpparser.binary
  *
  * - `should execute and return success result` — execute returns code 0 with output file.
  * - `should return cached output on repeated execution` — second execute returns same cached file.
- * - `should keep distinct cache entries for hash-colliding commands` — 32-bit contentHashCode collision
- *   must not replay the wrong cached output.
+ * - `should keep distinct cache entries for hash-colliding commands` — commands sharing a
+ *   contentHashCode must not replay each other's cached output; the key is a SHA-1 digest.
  * - `should not replay failed run from cache` — a failed run is never cached as success.
+ * - `should not cache a timed-out run` — a backstop expiry leaves no cache file and re-executes.
  * - `should return code -1 on timeout` — a process outliving the backstop returns code -1.
  * - `should reap TERM-ignoring process before returning on timeout` — destroy escalates to destroyForcibly
  *   so no process survives past the timeout return.
@@ -102,6 +103,23 @@ internal class AbcBinaryExecutionTest {
 
         val result2 = binary.execute()
         assertTrue(result2.code != 0)
+    }
+
+    @Test
+    fun `should not cache a timed-out run`() {
+        val binary = SleepBinary(executionTimeoutMillis = 0)
+        binary.workTmpDir = tempDir
+        binary.doCacheOutput = true
+
+        assertEquals(-1, binary.execute().code)
+        assertTrue(
+            tempDir
+                .toFile()
+                .listFiles()
+                .orEmpty()
+                .none { it.name.endsWith(".cache") },
+        )
+        assertEquals(-1, binary.execute().code)
     }
 
     @Test

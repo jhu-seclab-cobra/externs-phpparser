@@ -27,6 +27,8 @@ package edu.jhu.cobra.externs.phpparser
  *   metadata) still yield the numeric triple.
  * - `isPhpVersionValid should throw on minRequired component beyond Int range` — an oversized
  *   component is a format error per design.md, not a NumberFormatException.
+ * - `isPhpVersionValid should throw on current version component beyond Int range` — an oversized
+ *   component reported by the interpreter is also an ExternalBinaryInvalidException.
  */
 
 import org.junit.jupiter.api.io.TempDir
@@ -202,6 +204,14 @@ internal class PhpVersionValidationTest {
         val mock = createMockPhpBinary("8.0.0")
         assertFailsWith<ExternalBinaryInvalidException> {
             isPhpVersionValid(mock, "9999999999")
+        }
+    }
+
+    @Test
+    fun `isPhpVersionValid should throw on current version component beyond Int range`() {
+        val mock = createMockPhpBinary("99999999999.0.0")
+        assertFailsWith<ExternalBinaryInvalidException> {
+            isPhpVersionValid(mock, "7.1")
         }
     }
 

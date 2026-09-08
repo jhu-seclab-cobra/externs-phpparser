@@ -4,6 +4,7 @@ package edu.jhu.cobra.externs.phpparser.binary
  * Tests for [AbcBinary] configuration — Argument/Option delegates and command assembly.
  *
  * - `should initialize with default backstops and cache settings` — verifies backstop constants and cache (off).
+ * - `workTmpDir should default under java io tmpdir by class name` — `{tmpdir}/cobra/binaries/{className}`.
  * - `should throw when reading unset argument` — Argument delegate throws on null read.
  * - `should set and get argument via delegate` — Argument round-trip through delegate.
  * - `should set and get option via delegate` — Option round-trip and default value.
@@ -17,6 +18,8 @@ package edu.jhu.cobra.externs.phpparser.binary
  */
 
 import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
+import kotlin.io.path.Path
+import kotlin.io.path.div
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -30,6 +33,12 @@ internal class AbcBinaryConfigurationTest {
         assertEquals(EXECUTION_TIMEOUT_MILLIS, binary.executionTimeoutMillis)
         assertEquals(TERMINATION_GRACE_MILLIS, binary.terminationGraceMillis)
         assertEquals(false, binary.doCacheOutput)
+    }
+
+    @Test
+    fun `workTmpDir should default under java io tmpdir by class name`() {
+        val expected = Path(System.getProperty("java.io.tmpdir")) / "cobra" / "binaries" / "EchoBinary"
+        assertEquals(expected, EchoBinary().workTmpDir)
     }
 
     @Test
