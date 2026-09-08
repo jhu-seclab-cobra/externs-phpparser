@@ -14,6 +14,36 @@ private const val PHP_CLI_VERSION = "8.4"
 // php-parser PHAR release bundled as a classpath zip resource.
 private const val PARSER_VERSION = "5.7.0"
 
+// Substrings of `os.name` mapped to the platform token used in bundled resource names.
+private val OS_TOKEN_BY_NAME_FRAGMENT =
+    mapOf(
+        "mac" to "macos",
+        "win" to "windows",
+        "nix" to "linux",
+        "nux" to "linux",
+        "aix" to "linux",
+    )
+
+// Substrings of `os.arch` mapped to the architecture token used in bundled resource names.
+private val ARCH_TOKEN_BY_NAME_FRAGMENT =
+    mapOf(
+        "aarch64" to "aarch64",
+        "arm64" to "aarch64",
+        "x86_64" to "x86_64",
+        "amd64" to "x86_64",
+    )
+
+// CRC32 of each bundled binary once extracted; fixed by the resource zips shipped on the classpath.
+private val BUNDLED_BINARY_CRC32 =
+    mapOf(
+        "php-cli-$PHP_CLI_VERSION-linux-aarch64" to "714a9a7b",
+        "php-cli-$PHP_CLI_VERSION-linux-x86_64" to "afd3bd14",
+        "php-cli-$PHP_CLI_VERSION-macos-aarch64" to "7a3d2fca",
+        "php-cli-$PHP_CLI_VERSION-macos-x86_64" to "3500f339",
+        "php-cli-$PHP_CLI_VERSION-windows-x86_64" to "ef39e63d",
+        "php-parser-$PARSER_VERSION" to "95f828b5",
+    )
+
 /**
  * Parses PHP files into ASTs using the php-parser binary.
  *
@@ -33,33 +63,6 @@ public class BinPhpParser(
         JSON("--json-dump"),
     }
 
-    private val preloadOsUniformer =
-        mapOf(
-            "mac" to "macos",
-            "win" to "windows",
-            "nix" to "linux",
-            "nux" to "linux",
-            "aix" to "linux",
-        )
-
-    private val preloadArchUniformer =
-        mapOf(
-            "aarch64" to "aarch64",
-            "arm64" to "aarch64",
-            "x86_64" to "x86_64",
-            "amd64" to "x86_64",
-        )
-
-    private val preloadCrc32CheckSum =
-        mapOf(
-            "php-cli-$PHP_CLI_VERSION-linux-aarch64" to "714a9a7b",
-            "php-cli-$PHP_CLI_VERSION-linux-x86_64" to "afd3bd14",
-            "php-cli-$PHP_CLI_VERSION-macos-aarch64" to "7a3d2fca",
-            "php-cli-$PHP_CLI_VERSION-macos-x86_64" to "3500f339",
-            "php-cli-$PHP_CLI_VERSION-windows-x86_64" to "ef39e63d",
-            "php-parser-$PARSER_VERSION" to "95f828b5",
-        )
-
     private val phpBinaryFile: File = resolvePhpBinary(phpBinary)
 
     private val parserBinaryFile: File = parserBinary ?: resolveBundledParser()
@@ -73,9 +76,9 @@ public class BinPhpParser(
             return phpBinary
         }
         val rawOsName = System.getProperty("os.name", "unknown").lowercase()
-        val uniOsName = preloadOsUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawOsName } }
+        val uniOsName = OS_TOKEN_BY_NAME_FRAGMENT.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawOsName } }
         val rawArchName = System.getProperty("os.arch", "unknown").lowercase()
-        val uniArchName = preloadArchUniformer.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawArchName } }
+        val uniArchName = ARCH_TOKEN_BY_NAME_FRAGMENT.firstNotNullOfOrNull { (k, v) -> v.takeIf { k in rawArchName } }
         if (uniOsName == null || uniArchName == null) {
             return searchSystemPhp() ?: throw ExternalBinaryNotFoundException(
                 "php$MIN_PHP_VERSION+",
@@ -88,7 +91,7 @@ public class BinPhpParser(
     // Reuses a checksum-verified extraction or re-extracts the bundled interpreter for this platform.
     private fun resolveBundledPhp(fileName: String): File {
         val expFilePath = this.workTmpDir / fileName
-        if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return expFilePath.toFile()
+        if (expFilePath.crc32ChecksumString == BUNDLED_BINARY_CRC32[fileName]) return expFilePath.toFile()
         val loadStream = Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
         if (loadStream == null) {
             return searchSystemPhp()
@@ -109,7 +112,7 @@ public class BinPhpParser(
     private fun resolveBundledParser(): File {
         val fileName = "php-parser-$PARSER_VERSION"
         val expFilePath = this.workTmpDir / fileName
-        if (expFilePath.crc32ChecksumString == preloadCrc32CheckSum[fileName]) return expFilePath.toFile()
+        if (expFilePath.crc32ChecksumString == BUNDLED_BINARY_CRC32[fileName]) return expFilePath.toFile()
         val loadStream =
             Thread.currentThread().contextClassLoader.getResourceAsStream("$fileName.zip")
                 ?: throw ExternalBinaryNotFoundException("$fileName.zip", "the classpath resources")

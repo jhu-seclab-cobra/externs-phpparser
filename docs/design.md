@@ -8,7 +8,7 @@
 - **Exceptions**: `ExternalBinaryNotFoundException`, `ExternalBinaryInvalidException`, `ExternalBinaryArgumentMissException` — all extend `RuntimeException`
 - **Dependency roles**: Data holders: `BinaryResult`, `BinPhpParser.DumpType`. Orchestrator: `BinPhpParser`. Helper: `AbcBinary` (process lifecycle framework, inputs by subclass override).
 - **Modules and visibility**: One Gradle module (`externs-phpparser`, `explicitApi()`). `AbcBinary` and `BinaryResult` are public in the `binary` subpackage; `BinPhpParser`, the exceptions, and the top-level helpers are public in the root package `edu.jhu.cobra.externs.phpparser`. `readPhpVersion` and `withConfigurationSnapshot` are internal.
-- **Named values** (all constant tier, `rules/code/constants.md`): `EXECUTION_TIMEOUT_MILLIS` and `TERMINATION_GRACE_MILLIS` (internal, `AbcBinary.kt`), `VERSION_PROBE_TIMEOUT_SECONDS` (internal) and `VERSION_COMPONENT_COUNT` (private, `PhpVersionValidation.kt`), `CRC_BUFFER_SIZE` (private, `ArchiveExtraction.kt`), `MIN_PHP_VERSION`, `PHP_CLI_VERSION`, `PARSER_VERSION` (private, `BinPhpParser.kt`).
+- **Named values** (all constant tier, `rules/code/constants.md`): `EXECUTION_TIMEOUT_MILLIS` and `TERMINATION_GRACE_MILLIS` (internal, `AbcBinary.kt`), `VERSION_PROBE_TIMEOUT_SECONDS` (internal) and `VERSION_COMPONENT_COUNT` (private, `PhpVersionValidation.kt`), `CRC_BUFFER_SIZE` (private, `ArchiveExtraction.kt`), `MIN_PHP_VERSION`, `PHP_CLI_VERSION`, `PARSER_VERSION`, `OS_TOKEN_BY_NAME_FRAGMENT`, `ARCH_TOKEN_BY_NAME_FRAGMENT`, `BUNDLED_BINARY_CRC32` (private, `BinPhpParser.kt`).
 
 `AbcBinary` defines the process execution framework: argument/option management via delegated properties, command array construction (abstract), process spawning bounded by a fixed liveness backstop, and output caching. `BinPhpParser` extends it with PHP-specific binary resolution (bundled extraction with CRC32 or system PATH search), platform normalization, and parser CLI flag assembly. `BinaryResult` is a passive data holder pairing exit code with output file reference. Stateless top-level helpers are split by responsibility: `ExecutableSearch.kt` (binary lookup), `PhpVersionValidation.kt` (interpreter version probing and comparison), `ArchiveExtraction.kt` (ZIP extraction and CRC32 checksums), and `ScopedExecution.kt` (execution under temporary configuration).
 
@@ -64,9 +64,7 @@
 - `doWithColInfo: Boolean` — (Option `--with-column-info`) Defaults to false.
 - `doWithPositions: Boolean` — (Option `--with-positions`) Defaults to false.
 - `doWithRecovery: Boolean` — (Option `--with-recovery`) Defaults to false.
-- `preloadOsUniformer: Map` (private) — OS name normalization map (`mac`→`macos`, `win`→`windows`, `nix`/`nux`/`aix`→`linux`).
-- `preloadArchUniformer: Map` (private) — Architecture normalization map (`aarch64`/`arm64`→`aarch64`, `x86_64`/`amd64`→`x86_64`).
-- `preloadCrc32CheckSum: Map` (private) — Known-good CRC32 checksums for bundled binaries.
+- Platform normalization and bundled checksums are file-level constants: `OS_TOKEN_BY_NAME_FRAGMENT` (`mac`→`macos`, `win`→`windows`, `nix`/`nux`/`aix`→`linux`), `ARCH_TOKEN_BY_NAME_FRAGMENT` (`aarch64`/`arm64`→`aarch64`, `x86_64`/`amd64`→`x86_64`), `BUNDLED_BINARY_CRC32` (known-good CRC32 per bundled binary).
 
 **Inner Types**:
 
@@ -85,7 +83,7 @@
 **Construction**:
 - PHP binary resolution: caller-supplied (validated `>= MIN_PHP_VERSION`, 7.1) > bundled ZIP extraction for the normalized platform (with CRC32 check) > system PATH search (first `php` on PATH that satisfies the minimum version). Hosts with no bundled variant, or a missing bundled resource, go straight to the PATH search. Throws `ExternalBinaryNotFoundException` when all fail; throws `ExternalBinaryInvalidException` when a caller-supplied interpreter is below the minimum version.
 - Parser binary resolution: caller-supplied (not validated) > bundled ZIP extraction (with CRC32 check). Throws `ExternalBinaryNotFoundException` when the bundled resource is absent.
-- A pre-existing extraction under `workTmpDir` whose CRC32 matches the preloaded checksum is reused; extraction is skipped.
+- A pre-existing extraction under `workTmpDir` whose CRC32 matches `BUNDLED_BINARY_CRC32` is reused; extraction is skipped.
 - An extracted interpreter that cannot be marked executable throws `ExternalBinaryInvalidException`.
 
 ### BinaryResult

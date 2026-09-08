@@ -29,8 +29,8 @@ private fun cacheKeyOf(cmdArray: Array<String>): String {
 
 /** Abstract executable that runs in a working directory. */
 public abstract class AbcBinary {
-    private val tmpDir = Path(System.getProperty("java.io.tmpdir"))
-    public var workTmpDir: Path = tmpDir / "cobra" / "binaries" / this::class.java.simpleName
+    public var workTmpDir: Path =
+        Path(System.getProperty("java.io.tmpdir")) / "cobra" / "binaries" / this::class.java.simpleName
     internal val allArguments: MutableMap<String, Any?> = mutableMapOf()
     internal val allOptions: MutableMap<String, Any> = mutableMapOf()
     public var doCacheOutput: Boolean = false
@@ -108,26 +108,33 @@ public abstract class AbcBinary {
         val cmdUname = cacheKeyOf(cmdArray)
         val cacheFile = workTmpDir.resolve(".$cmdUname.cache")
         if (doCacheOutput && cacheFile.exists()) return BinaryResult(code = 0, output = cacheFile.toFile())
+        val result = runOnce(cmdArray, cmdUname)
+        if (doCacheOutput && result.code == 0) {
+            result.output.toPath().moveTo(cacheFile, overwrite = true)
+            return BinaryResult(code = 0, output = cacheFile.toFile())
+        }
+        return result
+    }
+
+    // Spawns the command into a per-execution output file and waits within the liveness backstop.
+    private fun runOnce(
+        cmdArray: Array<String>,
+        cmdUname: String,
+    ): BinaryResult {
         // Unique per execution: concurrent runs of the same command must not share an output file.
         val tmpStdOut = createTempFile(workTmpDir, ".$cmdUname", ".out").toFile()
-        val pBuilder =
+        val process =
             ProcessBuilder(*cmdArray)
                 .directory(workTmpDir.toFile())
                 .redirectErrorStream(true)
                 .redirectOutput(tmpStdOut)
-        val process = pBuilder.start()
-        val isFinished = awaitCompletion(process)
-        if (!isFinished) {
+                .start()
+        if (!awaitCompletion(process)) {
             reapTimedOutProcess(process)
             tmpStdOut.appendText("timed out after $executionTimeoutMillis ms")
             return BinaryResult(code = -1, output = tmpStdOut)
         }
-        val exitCode = process.exitValue()
-        if (doCacheOutput && exitCode == 0) {
-            tmpStdOut.toPath().moveTo(cacheFile, overwrite = true)
-            return BinaryResult(code = 0, output = cacheFile.toFile())
-        }
-        return BinaryResult(code = exitCode, output = tmpStdOut)
+        return BinaryResult(code = process.exitValue(), output = tmpStdOut)
     }
 
     /**
