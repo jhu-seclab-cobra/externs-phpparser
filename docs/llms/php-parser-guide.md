@@ -6,16 +6,16 @@
 
 ```kotlin
 val parser = BinPhpParser().apply {
-    dumpType = BinPhpParser.DumpType.JSON   // machine-readable
-    doResolveName = true                     // FQN for all class/interface refs
-    doWithRecovery = true                    // parse broken PHP gracefully
+    dumpType = BinPhpParser.DumpType.JSON
+    doResolveName = true
+    doWithRecovery = true
 }
 parser.target = File("src/Example.php")
 val result = parser.execute()
-val json = result.output.readText()   // JSON AST array
+val json = result.output.readText()
 ```
 
-This is the recommended configuration for static analysis.
+- Static analysis configuration: `JSON` dump, name resolution on, recovery on.
 
 ## Parsing Pipeline
 
@@ -33,7 +33,8 @@ PHP source file
 
 ## JSON Output Format
 
-Top-level: JSON array of statement nodes. Each node:
+- Top-level: JSON array of statement nodes.
+- Each node: `nodeType`, `attributes`, subnodes.
 
 ```json
 {
@@ -50,11 +51,11 @@ Top-level: JSON array of statement nodes. Each node:
 }
 ```
 
-Output file starts with header lines (`====> File ...`, `==> Resolved names.`). Skip lines before the `[` when parsing JSON.
+- Output file starts with header lines (`====> File ...`, `==> Resolved names.`). Skip lines before the `[` when parsing JSON.
 
 ## Name Resolution Behavior
 
-With `doResolveName = true`, PHP-Parser applies `NodeVisitor\NameResolver`:
+- `doResolveName = true` applies `NodeVisitor\NameResolver`.
 
 ### Resolved to `Name_FullyQualified`
 
@@ -77,11 +78,12 @@ With `doResolveName = true`, PHP-Parser applies `NodeVisitor\NameResolver`:
 | `strlen()` in namespace | `Name("strlen")` | Runtime fallback | Phase 1: check namespace, fallback global |
 | `PHP_INT_MAX` in namespace | `Name("PHP_INT_MAX")` | Runtime fallback | Phase 1: check namespace, fallback global |
 
-Unqualified functions/constants get a `namespacedName` attribute with the namespace-prefixed version (e.g., `App\strlen`).
+- Unqualified functions/constants carry a `namespacedName` attribute with the namespace-prefixed form (e.g., `App\strlen`).
 
 ### Structural Nodes
 
-`Stmt_Namespace` and `Stmt_Use` remain in the AST after resolution. They are informational — all resolved references use `Name_FullyQualified` directly.
+- `Stmt_Namespace` and `Stmt_Use` remain in the AST after resolution.
+- They are informational — all resolved references use `Name_FullyQualified` directly.
 
 ## AST Node Types (Key Categories)
 
@@ -135,7 +137,7 @@ Unqualified functions/constants get a `namespacedName` attribute with the namesp
 
 ### Modifier Flags
 
-Stored in `flags` field as bitmask:
+- Stored in `flags` field as bitmask.
 
 | Flag | Value | PHP |
 |------|-------|-----|
@@ -156,3 +158,10 @@ Stored in `flags` field as bitmask:
 | Syntax error, with recovery | `BinaryResult(code=0, output=partialAst)` — `Expr_Error` nodes inserted |
 | Timeout | `BinaryResult(code=-1, output=timeoutFile)` |
 | No PHP binary | `ExternalBinaryNotFoundException` at construction |
+
+## Gotchas
+
+- Skip the `====> File ...` and `==> Resolved names.` header lines before the JSON `[`.
+- `static::` names are never resolved; `self`/`parent` and unqualified function/constant names need downstream resolution.
+- `Name.name` is one string (`"App\\Models\\User"`), not a `parts` array.
+- v5 renamed scalar nodes (`Scalar_LNumber` → `Scalar_Int`); match on v5 names only.

@@ -2,7 +2,7 @@
 
 > Kotlin/JVM wrapper for PHP-Parser — parses PHP source files into AST text via managed external PHP binary.
 
-`BinPhpParser` is the primary entry point. It extends `AbcBinary`, which handles process execution, timeout, and output caching. Call `execute()` to parse a PHP file. The result is a `BinaryResult` with an exit code and output file.
+`BinPhpParser` is the primary entry point; it extends `AbcBinary`, which handles process execution, timeout, and output caching. Call `execute()` to parse a PHP file. The result is a `BinaryResult` with an exit code and output file.
 
 ## Instructions for Agents
 
@@ -10,13 +10,14 @@
 - Use `executeWith { }` for one-off config overrides — state restores automatically.
 - Check `BinaryResult.code`: `0` = success, `-1` = timeout.
 - Read AST output from `BinaryResult.output` (a `File`).
+- Handle unresolved `Name` nodes (`self`, `parent`, unqualified functions) downstream after name resolution.
 - Set `dumpType` to `DumpType.JSON` for machine-readable output, `S_EXPR` for structural, `VAR` for PHP debug.
 - Set `doResolveName = true` for static analysis — resolves names to `Name_FullyQualified`.
-- After resolution, `Name` nodes (`self`, `parent`, unqualified functions) need downstream handling.
 - Set `doCacheOutput = true` to skip re-execution for identical commands.
 - Catch `ExternalBinaryNotFoundException` at construction — thrown when no PHP binary is found.
 - Catch `ExternalBinaryArgumentMissException` — thrown when `target` is not set before `execute()`.
 - Never assume a specific PHP binary location. `BinPhpParser` resolves bundled or system PHP automatically.
+- Never rely on `doCacheOutput` after editing a file in place — the cache keys on the command line, not file content.
 
 ## API Reference
 

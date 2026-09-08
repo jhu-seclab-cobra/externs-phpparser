@@ -5,7 +5,7 @@
 Parses PHP source files into AST text (S-expression, JSON, or var-dump) via a managed PHP binary behind `execute()`.
 
 [![codecov](https://codecov.io/gh/jhu-seclab-cobra/externs-phpparser/branch/main/graph/badge.svg)](https://codecov.io/gh/jhu-seclab-cobra/externs-phpparser)
-![Kotlin JVM](https://img.shields.io/badge/Kotlin%20JVM-2.0.1%20%7C%20JVM%201.8%2B-blue?logo=kotlin)
+![Kotlin JVM](https://img.shields.io/badge/Kotlin%20JVM-2.4.20%20%7C%20JVM%201.8%2B-blue?logo=kotlin)
 [![Release](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/jhu-seclab-cobra/externs-phpparser/releases/tag/v0.1.0)
 [![last commit](https://img.shields.io/github/last-commit/jhu-seclab-cobra/externs-phpparser)](https://github.com/jhu-seclab-cobra/externs-phpparser/commits/main)
 [![](https://jitpack.io/v/jhu-seclab-cobra/externs-phpparser.svg)](https://jitpack.io/#jhu-seclab-cobra/externs-phpparser)
@@ -70,7 +70,7 @@ val result = parser.executeWith {
 - [Concepts](docs/concept.md) -- problem context, data flow, core concepts, scenarios
 - [Design](docs/design.md) -- class/type specifications, function signatures, exception types
 - [Implementation Notes](docs/impl.md) -- APIs, libraries, developer instructions
-- [PHP-Parser AST Reference](docs/research/php_parser_ast.md) -- all AST node types, subnodes, JSON format
+- [PHP-Parser AST Reference](docs/research/index.md) -- all AST node types, subnodes, JSON format
 
 ## For Agents
 
