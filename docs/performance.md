@@ -39,7 +39,7 @@ Run: `./gradlew performanceTest --rerun`
 |----|-------|---------|--------|
 | P1-1 | Remove debug println in extractFileFromZip | ArchiveExtraction.kt | extractFileFromZip: 152,618 -> 99,786 ns/op (-34.6%) |
 | P1-2 | Compile Regex as top-level constants | PhpVersionValidation.kt | regex path: 495.0 -> 157.1 ns/op (-68.3%, 3.2x) |
-| P1-3 | Use contentHashCode for cache key | binary/AbcBinary.kt | hash: 179.7 -> 24.1 ns/op (-86.6%, 7.5x) |
+| P1-3 | Use contentHashCode for cache key | binary/AbcBinary.kt | hash: 179.7 -> 24.1 ns/op (-86.6%, 7.5x); superseded by SHA-1, see below |
 | P1-4 | Use Sequence for PATH search | ExecutableSearch.kt | PATH search: 51,032 -> 1,076 ns/op (-97.9%, 47.4x) |
 | P1-5 | Reduce intermediate collections in getCommandArray | BinPhpParser.kt | cmd array: 161.8 -> 97.0 ns/op (-40.1%, 1.7x) |
 
@@ -55,10 +55,22 @@ Run: `./gradlew performanceTest --rerun`
 - **Change**: Extracted `Regex("""PHP (\d+\.\d+\.\d+)""")` and `Regex("""^\d+(\.\d+){0,2}$""")` to file-level `private val`
 - **Measured**: regex path 495.0 -> 157.1 ns/op (**-68.3%, 3.2x faster**), no cross-regression
 
-### P1-3: Use `contentHashCode()` for cache key in `execute()` — KEEP
+### P1-3: Use `contentHashCode()` for cache key in `execute()` — SUPERSEDED
 - **File**: `binary/AbcBinary.kt`
 - **Change**: Replaced `cmdArray.joinToString(" ").hashCode()` with `cmdArray.contentHashCode()`
 - **Measured**: hash computation 179.7 -> 24.1 ns/op (**-86.6%, 7.5x faster**), no cross-regression
+- **Superseded**: a 32-bit `contentHashCode()` collides across distinct command lines and two runs then
+  share one output file. `cacheKeyOf` now takes a SHA-1 digest over the NUL-joined arguments.
+  Measured in the same benchmark (3 variants, one JVM invocation):
+
+| Benchmark | ns/op | ops/s |
+|-----------|-------|-------|
+| joinToString-hashCode | 182.0 | 5,494,379 |
+| contentHashCode | 23.4 | 42,704,566 |
+| sha1-digest | 5,110.2 | 195,689 |
+
+  The digest is computed once per `execute()` call, ahead of a process spawn that costs milliseconds;
+  the 5 µs is not measurable at the call site. Correctness wins over the P1-3 gain.
 
 ### P1-4: Use `Sequence` for PATH search in `searchBin` — KEEP
 - **File**: `ExecutableSearch.kt`
@@ -90,4 +102,5 @@ Run: `./gradlew performanceTest --rerun`
 2. Most gains come from eliminating unnecessary allocations and I/O during setup, not algorithmic improvements
 3. Debug println in production code is both a correctness issue and a performance issue (-34.6%)
 4. Lazy sequences (`splitToSequence`) vastly outperform eager chains when only the first match is needed (47x)
-5. `contentHashCode()` avoids intermediate string allocation for array hashing (7.5x vs `joinToString().hashCode()`)
+5. `contentHashCode()` avoids intermediate string allocation for array hashing (7.5x vs `joinToString().hashCode()`),
+   but a 32-bit key is not collision-free; the cache key is a SHA-1 digest, and its cost hides behind the process spawn

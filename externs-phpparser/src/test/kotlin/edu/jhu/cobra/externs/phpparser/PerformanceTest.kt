@@ -5,7 +5,8 @@ package edu.jhu.cobra.externs.phpparser
  *
  * - `P1-1 benchmark extractFileFromZip` — ZIP extraction throughput (1K ops).
  * - `P1-2 benchmark regex compilation pattern` — cached vs per-call regex compilation.
- * - `P1-3 benchmark cache key hashing` — joinToString-hashCode vs contentHashCode.
+ * - `P1-3 benchmark cache key hashing` — joinToString-hashCode vs contentHashCode vs the SHA-1 digest
+ *   `AbcBinary` uses.
  * - `P1-4 benchmark PATH split pattern` — eager split+filter vs lazy splitToSequence.
  * - `P1-5 benchmark command array building` — filterValues+spread vs buildList single-pass.
  */
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
+import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.io.path.Path
@@ -122,6 +124,13 @@ internal class PerformanceTest {
         }
         benchmark("contentHashCode") {
             cmdArray.contentHashCode().absoluteValue.toString()
+        }
+        benchmark("sha1-digest") {
+            val cmdBytes = cmdArray.joinToString(separator = "\u0000").toByteArray(Charsets.UTF_8)
+            MessageDigest
+                .getInstance("SHA-1")
+                .digest(cmdBytes)
+                .joinToString(separator = "") { byte -> "%02x".format(byte) }
         }
     }
 
