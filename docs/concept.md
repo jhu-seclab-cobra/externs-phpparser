@@ -14,7 +14,7 @@ externs-phpparser is the PHP parsing adapter in the Cobra analysis pipeline, tra
 - **Connections:** [Analysis Orchestrator] → [externs-phpparser] → [AST Consumer]
 
 **Scope Boundaries**
-- **Owned:** PHP binary resolution (bundled or system), parser binary extraction, process lifecycle management, output caching, platform normalization (OS/arch), integrity verification (CRC32)
+- **Owned:** PHP binary resolution (bundled or system), parser binary extraction, the dump script, process lifecycle management, output caching, platform normalization (OS/arch), integrity verification (CRC32)
 - **Not Owned:** AST interpretation or transformation, PHP installation, upstream orchestration logic, downstream AST consumption
 
 ## 2. Concepts
@@ -44,14 +44,19 @@ externs-phpparser is the PHP parsing adapter in the Cobra analysis pipeline, tra
   - **Scope:** Includes the priority chain — caller-supplied path, bundled archive extraction with integrity verification, system PATH search — and the minimum-version check on the interpreter. Excludes installing PHP.
   - **Relationships:** Uses Platform Normalization to select the bundled variant and Integrity Verification to decide whether extraction is needed; precedes Process Execution.
 
+- **Name:** Dump Script
+  - **Definition:** The wrapper's own copy of php-parser's command-line script `php-parse`, run by the interpreter with the parser PHAR as its first argument, so the wrapper decides how the AST is encoded.
+  - **Scope:** Includes the operations, flags, header lines, and exit codes of `php-parse` for one target file. Differs from `php-parse` only in the JSON dump: a byte sequence that is not valid UTF-8 becomes U+FFFD, and an encoding failure exits non-zero instead of printing nothing (user decision PA3). Excludes the parser itself, which stays in the PHAR.
+  - **Relationships:** Published from the classpath by Binary Resolution under a name that carries its checksum; first component after the interpreter in the command line built by Process Execution.
+
 - **Name:** Platform Normalization
   - **Definition:** Mapping raw OS and architecture identifiers to the canonical keys used in bundled binary names, so one naming scheme covers heterogeneous hosts.
   - **Scope:** Includes OS names ("Mac OS X" → "macos") and CPU architectures ("arm64" → "aarch64"). Excludes hosts with no bundled variant, which fall through to the system PATH.
   - **Relationships:** Input to Binary Resolution.
 
 - **Name:** Integrity Verification
-  - **Definition:** CRC32 checksum comparison of an extracted binary against a preloaded known-good value, so an intact extraction is reused and a corrupted one is replaced.
-  - **Scope:** Includes the bundled interpreter and parser PHAR. Excludes caller-supplied binaries.
+  - **Definition:** CRC32 checksum comparison of an extracted file against a known-good value, preloaded for a binary and computed from the classpath resource for the Dump Script, so an intact extraction is reused and a corrupted one is replaced.
+  - **Scope:** Includes the bundled interpreter, the parser PHAR, and the Dump Script. Excludes caller-supplied binaries.
   - **Relationships:** Gate inside Binary Resolution that skips re-extraction.
 
 - **Name:** Process Execution
@@ -85,11 +90,11 @@ Software structure for these concepts: [design.md](design.md).
 
 **Data Contracts**
 - **With Analysis Orchestrator:** Receives an absolute PHP source file path and optional configuration (dump type, pretty print, name resolution, position info, column info, recovery mode). Returns a Binary Result.
-- **With Bundled Resources:** Expects ZIP archives on the classpath named by convention (`php-cli-{version}-{os}-{arch}.zip`, `php-parser-{version}.zip`). Each ZIP contains a single executable at a known internal path.
+- **With Bundled Resources:** Expects ZIP archives on the classpath named by convention (`php-cli-{version}-{os}-{arch}.zip`, `php-parser-{version}.zip`). Each ZIP contains a single executable at a known internal path. The Dump Script is a plain PHP file resource, `php_parse.php`.
 
 **Internal Processing Flow**
-1. **Binary Resolution** — On construction, resolve the PHP interpreter and parser PHAR: caller-supplied path, then bundled extraction with integrity verification, then system PATH search.
-2. **Command Construction** — Assemble the command line: interpreter, parser PHAR, enabled boolean options, dump type flag, target file path.
+1. **Binary Resolution** — On construction, resolve the PHP interpreter and parser PHAR: caller-supplied path, then bundled extraction with integrity verification, then system PATH search. Publish the Dump Script.
+2. **Command Construction** — Assemble the command line: interpreter, Dump Script, parser PHAR, enabled boolean options, dump type flag, target file path.
 3. **Cache Check** — When caching is enabled, compute the command's content hash. If a cached output file exists, return it immediately.
 4. **Process Spawn** — Start the interpreter with stdout/stderr redirected to a temporary file. Wait up to the fixed liveness backstop.
 5. **Result Capture** — On completion, pair the exit code with the output file. On backstop expiry, terminate and reap the process and return a Binary Result with code -1.
@@ -99,6 +104,8 @@ Software structure for these concepts: [design.md](design.md).
 - **Typical:** The orchestrator creates a parser, sets the target file, and executes. The bundled interpreter passes integrity verification (already extracted), the parser runs, and a Binary Result with code 0 and AST output is returned.
 
 - **Boundary:** The bundled interpreter archive is missing from the classpath, and no system PHP at or above the minimum version exists on PATH. Binary Resolution fails on construction — fail-fast, no silent fallback.
+
+- **Boundary:** A Latin-1 file holds `"caf\xe9"`, or a literal holds `"\xff"`. PHP reads the bytes as written; the JSON dump carries U+FFFD in their place, exits 0, and its offsets index the unchanged file.
 
 - **Boundary:** The parser process hangs. After the fixed one-minute liveness backstop, the process is terminated and reaped, and a Binary Result with code -1 and a timeout note in its output file is returned.
 

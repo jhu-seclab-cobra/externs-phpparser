@@ -3,7 +3,10 @@
 ## APIs
 
 - **[php-parser]** `(new ParserFactory())->createForHostVersion()` — create parser for current PHP version.
-- **[php-parser]** `json_encode($stmts, JSON_PRETTY_PRINT)` — all AST nodes implement `JsonSerializable`; produces JSON with `nodeType` + `attributes` + subnodes.
+- **[php-parser]** `json_encode($stmts, JSON_PRETTY_PRINT)` — all AST nodes implement `JsonSerializable`; produces JSON with `nodeType` + `attributes` + subnodes. The upstream `bin/php-parse` passes only `JSON_PRETTY_PRINT`: on a byte sequence that is not valid UTF-8 (a `"\xff"` literal, a Latin-1 identifier, literal or comment) `json_encode` returns false, `echo` prints an empty line, and the process exits 0.
+- **[php]** `JSON_INVALID_UTF8_SUBSTITUTE` (PHP 7.2+) — replaces each invalid UTF-8 sequence with U+FFFD. `JSON_THROW_ON_ERROR` (PHP 7.3+) — throws `JsonException` instead of returning false. Both predate PHP 7.4, the version the bundled PHAR's Composer platform check (`vendor/composer/platform_check.php`) requires; `MIN_PHP_VERSION` (7.1) is below it, so a caller-supplied 7.1–7.3 interpreter passes validation and then fails that check.
+- **[php]** `json_encode` default depth 512 — an AST nested deeper (about 600 chained `.` operations) throws `JsonException: Maximum stack depth exceeded` under `JSON_THROW_ON_ERROR`.
+- **[php]** `Phar::loadPhar($path, $alias)` then `require 'phar://<alias>/vendor/autoload.php'` — loads the php-parser PHAR whatever its file name; `phar://<path>/...` alone fails for a file name with no extension. The bundled PHAR's own alias is `php-parser.phar`.
 - **[php-parser]** `Node::getType()` — returns `nodeType` string: class name without `PhpParser\Node\` prefix, `\` → `_`, no trailing `_` for reserved keywords (e.g. `Scalar\Int_` → `Scalar_Int`).
 - **[java.nio.file]** `Files.move(stage, target, ATOMIC_MOVE)` — throws `AtomicMoveNotSupportedException` on filesystems without atomic rename; retry with `REPLACE_EXISTING`.
 - **[java.lang]** `Process.waitFor(timeout, unit)` — returns `false` on expiry without terminating the process; call `destroy()`/`destroyForcibly()` then `waitFor()` to reap.
@@ -13,7 +16,7 @@
 
 ## Libraries
 
-- `nikic/php-parser` v5.7.0 — PHP AST parser. Bundled as PHAR (`php-parser-5.7.0.zip` classpath resource), invoked via `BinPhpParser`.
+- `nikic/php-parser` v5.7.0 (BSD-3-Clause) — PHP AST parser. Bundled as PHAR (`php-parser-5.7.0.zip` classpath resource), invoked via `BinPhpParser`. The Dump Script `php_parse.php` derives from its `bin/php-parse` and keeps its copyright notice and license conditions in the file header.
 - `php-cli` 8.4 — interpreter bundled as `php-cli-8.4-{os}-{arch}.zip` classpath resources for macos/linux (x86_64, aarch64) and windows (x86_64).
 - `org.junit.jupiter:junit-jupiter-api:5.14.4`, `org.junit.jupiter:junit-jupiter-params:5.14.4` — test framework. Aliases `libs.junit.jupiter.api`, `libs.junit.jupiter.params`.
 - `io.mockk:mockk:1.14.11` — test doubles at process boundaries. Alias `libs.mockk`.
@@ -23,7 +26,7 @@
 - Toolchain: JDK 8 (foojay-resolved), Kotlin 2.4.20, ktlint 1.8.0 (plugin 14.2.0), detekt 1.23.8 with `config/detekt/detekt.yml`.
 - Quality gate: `./gradlew detekt ktlintCheck build -q`; auto-format with `./gradlew ktlintFormat -q`.
 - Performance benchmarks are tagged `performance` and excluded from `test`; run `./gradlew performanceTest`.
-- Bundled binary checksums (`preloadCrc32CheckSum`) must be updated whenever a resource zip is replaced.
+- Bundled binary checksums (`BUNDLED_BINARY_CRC32`) must be updated whenever a resource zip is replaced. The Dump Script needs no stored checksum: it is computed from the resource.
 - AST node reference (all nodeTypes, subnodes, constants, JSON format): [research/index.md](research/index.md).
 - JSON output: top-level is `Stmt[]` array. Each node has `"nodeType"` string + `"attributes"` object + subnode keys.
 - `attributes` always contains: `startLine`, `endLine`, `startTokenPos`, `endTokenPos`, `startFilePos`, `endFilePos`, `comments`.
@@ -37,7 +40,8 @@
 ### BinPhpParser
 
 - `DumpType.JSON` (`--json-dump`) yields the JSON AST consumed downstream.
-- Parser output file (`BinaryResult.output`) contains raw JSON prepended with `====> File ...` header lines. Downstream parser must skip non-JSON prefix.
+- Parser output file (`BinaryResult.output`) contains raw JSON prepended with `====> File ...` header lines, which the Dump Script writes to stderr as `php-parse` does. Downstream parser must skip non-JSON prefix.
+- The Dump Script runs the operations in command-line order, as `php-parse` does: `--resolve-names` before the dump flag resolves names first.
 - Error recovery mode (`--with-recovery`): parser inserts `Expr_Error` placeholder nodes instead of throwing.
 - Output cache keys on the command line, not file content; a changed file under the same path is a cache hit.
 

@@ -8,9 +8,9 @@
 - **Exceptions**: `ExternalBinaryNotFoundException`, `ExternalBinaryInvalidException`, `ExternalBinaryArgumentMissException` — all extend `RuntimeException`
 - **Dependency roles**: Data holders: `BinaryResult`, `BinPhpParser.DumpType`. Orchestrator: `BinPhpParser`. Helper: `AbcBinary` (process lifecycle framework, inputs by subclass override).
 - **Modules and visibility**: One Gradle module (`externs-phpparser`, `explicitApi()`). `AbcBinary` and `BinaryResult` are public in the `binary` subpackage; `BinPhpParser`, the exceptions, and the top-level helpers are public in the root package `edu.jhu.cobra.externs.phpparser`. `readPhpVersion` and `withConfigurationSnapshot` are internal.
-- **Named values** (all constant tier, `rules/code/constants.md`): `EXECUTION_TIMEOUT_MILLIS` and `TERMINATION_GRACE_MILLIS` (internal, `AbcBinary.kt`), `VERSION_PROBE_TIMEOUT_SECONDS` (internal) and `VERSION_COMPONENT_COUNT` (private, `PhpVersionValidation.kt`), `CRC_BUFFER_SIZE` (private, `ArchiveExtraction.kt`), `MIN_PHP_VERSION`, `PHP_CLI_VERSION`, `PARSER_VERSION`, `OS_TOKEN_BY_NAME_FRAGMENT`, `ARCH_TOKEN_BY_NAME_FRAGMENT`, `BUNDLED_BINARY_CRC32` (private, `BinPhpParser.kt`).
+- **Named values** (all constants in code, each fixed by the bundled resources or the platform): `EXECUTION_TIMEOUT_MILLIS` and `TERMINATION_GRACE_MILLIS` (internal, `AbcBinary.kt`), `VERSION_PROBE_TIMEOUT_SECONDS` (internal) and `VERSION_COMPONENT_COUNT` (private, `PhpVersionValidation.kt`), `CRC_BUFFER_SIZE` (private, `ArchiveExtraction.kt`), `MIN_PHP_VERSION`, `PHP_CLI_VERSION`, `PARSER_VERSION`, `OS_TOKEN_BY_NAME_FRAGMENT`, `ARCH_TOKEN_BY_NAME_FRAGMENT`, `BUNDLED_BINARY_CRC32`, `DUMP_SCRIPT_RESOURCE` (private, `BinPhpParser.kt`).
 
-`AbcBinary` defines the process execution framework: argument/option management via delegated properties, command array construction (abstract), process spawning bounded by a fixed liveness backstop, and output caching. `BinPhpParser` extends it with PHP-specific binary resolution (bundled extraction with CRC32 or system PATH search), platform normalization, and parser CLI flag assembly. `BinaryResult` is a passive data holder pairing exit code with output file reference. Stateless top-level helpers are split by responsibility: `ExecutableSearch.kt` (binary lookup), `PhpVersionValidation.kt` (interpreter version probing and comparison), `ArchiveExtraction.kt` (ZIP extraction and CRC32 checksums), and `ScopedExecution.kt` (execution under temporary configuration).
+`AbcBinary` defines the process execution framework: argument/option management via delegated properties, command array construction (abstract), process spawning bounded by a fixed liveness backstop, and output caching. `BinPhpParser` extends it with PHP-specific binary resolution (bundled extraction with CRC32 or system PATH search), platform normalization, and parser CLI flag assembly. `BinaryResult` is a passive data holder pairing exit code with output file reference. Stateless top-level helpers are split by responsibility: `ExecutableSearch.kt` (binary lookup), `PhpVersionValidation.kt` (interpreter version probing and comparison), `ArchiveExtraction.kt` (ZIP extraction, atomic publication, and CRC32 checksums), and `ScopedExecution.kt` (execution under temporary configuration).
 
 ## Class / Type Specifications
 
@@ -57,6 +57,7 @@
 **State/Fields**:
 - `phpBinaryFile: File` (private) — Resolved PHP interpreter (caller-supplied, bundled, or system). Resolved eagerly on construction.
 - `parserBinaryFile: File` (private) — Resolved php-parser PHAR. Resolved eagerly on construction.
+- `dumpScriptFile: File` (private) — Published Dump Script (`php_parse.php` resource). Published eagerly on construction.
 - `target: File` — (Argument) Target PHP source file to parse. Required before `execute()`.
 - `dumpType: DumpType` — (Argument) AST output format. Defaults to `S_EXPR`.
 - `doPrettyPrint: Boolean` — (Option `--pretty-print`) Defaults to false.
@@ -75,14 +76,15 @@
 **Methods**:
 
 `getCommandArray(): Array<String>` (override)
-- **Behavior**: Builds the command array in one pass: PHP binary, parser PHAR, every option whose value is `true`, dump type flag, target path.
-- **Input**: Reads `phpBinaryFile`, `parserBinaryFile`, `allOptions`, `dumpType`, `target`.
+- **Behavior**: Builds the command array in one pass: PHP binary, Dump Script, parser PHAR, every option whose value is `true`, dump type flag, target path. Every dump type runs through the Dump Script, so the command shape never depends on `dumpType`.
+- **Input**: Reads `phpBinaryFile`, `dumpScriptFile`, `parserBinaryFile`, `allOptions`, `dumpType`, `target`.
 - **Output**: `Array<String>`.
 - **Errors**: `ExternalBinaryArgumentMissException` if `target` not set.
 
 **Construction**:
 - PHP binary resolution: caller-supplied (validated `>= MIN_PHP_VERSION`, 7.1) > bundled ZIP extraction for the normalized platform (with CRC32 check) > system PATH search (first `php` on PATH that satisfies the minimum version). Hosts with no bundled variant, or a missing bundled resource, go straight to the PATH search. Throws `ExternalBinaryNotFoundException` when all fail; throws `ExternalBinaryInvalidException` when a caller-supplied interpreter is below the minimum version.
-- Parser binary resolution: caller-supplied (not validated) > bundled ZIP extraction (with CRC32 check). Throws `ExternalBinaryNotFoundException` when the bundled resource is absent.
+- Parser binary resolution: caller-supplied (not validated; must be a php-parser PHAR, which the Dump Script loads with `Phar::loadPhar`) > bundled ZIP extraction (with CRC32 check). Throws `ExternalBinaryNotFoundException` when the bundled resource is absent.
+- Dump Script publication: reads the `DUMP_SCRIPT_RESOURCE` classpath resource, computes its CRC32, and publishes it atomically as `workTmpDir/php_parse-<crc32>.php` unless a file of that name with that CRC32 exists. The checksum in the name makes a changed script a changed command line, so the output cache never returns output of an earlier script. Throws `ExternalBinaryNotFoundException` when the resource is absent.
 - A pre-existing extraction under `workTmpDir` whose CRC32 matches `BUNDLED_BINARY_CRC32` is reused; extraction is skipped.
 - An extracted interpreter that cannot be marked executable throws `ExternalBinaryInvalidException`.
 
@@ -143,10 +145,20 @@
 
 **`extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path)`** (public)
 - **Responsibility**: Extract a single target file from a ZIP archive with atomic publication.
-- **Behavior**: Creates parent directories, iterates ZIP entries with path normalization (backslash to forward slash), stages the first matching entry to a unique sibling temp file, then moves it over the destination via `ATOMIC_MOVE` (falling back to `REPLACE_EXISTING` when the filesystem lacks atomic-move support). Concurrent readers only ever observe an absent or complete destination, never a partial one. The staging file is removed and the input stream closed on every exit path.
+- **Behavior**: Iterates ZIP entries with path normalization (backslash to forward slash) and publishes the first matching entry through `publishFile`. The input stream is closed on every exit path.
 - **Input**: `zipInputStream` — ZIP stream; `toOutPath` — extraction destination; `fromZipPath` — candidate entry paths within ZIP.
 - **Output**: None (Unit); the destination file exists on return.
 - **Errors**: Throws `ExternalBinaryNotFoundException` when no entry matches. Propagates I/O exceptions from stream operations.
+
+**`publishFile(inputStream: InputStream, toOutPath: Path)`** (internal)
+- **Responsibility**: Write a stream to a path with atomic publication.
+- **Behavior**: Creates parent directories, stages the stream to a unique sibling temp file, then moves it over the destination via `ATOMIC_MOVE` (falling back to `REPLACE_EXISTING` when the filesystem lacks atomic-move support). Concurrent readers only ever observe an absent or complete destination, never a partial one. The staging file is removed on every exit path.
+- **Input**: `inputStream` — content; `toOutPath` — destination.
+- **Output**: None (Unit); the destination file exists on return.
+- **Errors**: Propagates I/O exceptions.
+
+**`ByteArray.crc32ChecksumString: String`** (internal extension property)
+- **Responsibility**: CRC32 checksum of in-memory content, in the same 8-character lowercase hex form as the file checksum.
 
 **`Path.crc32ChecksumString: String?`** (public extension property)
 - **Responsibility**: Compute CRC32 checksum of a file for integrity verification.
