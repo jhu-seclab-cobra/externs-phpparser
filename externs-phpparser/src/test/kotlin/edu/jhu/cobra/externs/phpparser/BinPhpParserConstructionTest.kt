@@ -8,6 +8,8 @@ package edu.jhu.cobra.externs.phpparser
  * - `should accept valid system php binary` — system PHP accepted
  * - `should accept custom parserBinary` — custom PHAR accepted
  * - `should throw when phpBinary version too low` — caller-supplied binary is never silently discarded
+ * - `should reject PHP 7_3` — 7.3.33, one release below the minimum 7.4
+ * - `should accept PHP 7_4` — 7.4.0, the minimum the bundled PHAR runs on
  */
 
 import org.junit.jupiter.api.io.TempDir
@@ -64,5 +66,24 @@ internal class BinPhpParserConstructionTest {
             exception.message.orEmpty().contains(fakePhp.absolutePath),
             "message should name the rejected binary: ${exception.message}",
         )
+    }
+
+    // Shell script printing the `php --version` banner of the given release.
+    private fun fakePhpOfVersion(version: String): File =
+        Files.createTempFile(tempDir, "fake-php", ".sh").toFile().apply {
+            writeText("#!/bin/sh\necho 'PHP $version (cli)'")
+            setExecutable(true)
+        }
+
+    @Test
+    fun `should reject PHP 7_3`() {
+        assertFailsWith<ExternalBinaryInvalidException> {
+            BinPhpParser(phpBinary = fakePhpOfVersion("7.3.33"))
+        }
+    }
+
+    @Test
+    fun `should accept PHP 7_4`() {
+        assertNotNull(BinPhpParser(phpBinary = fakePhpOfVersion("7.4.0")))
     }
 }

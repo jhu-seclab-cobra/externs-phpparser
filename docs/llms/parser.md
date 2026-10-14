@@ -18,7 +18,7 @@ if (result.code == 0) println(result.output.readText())
 
 ### BinPhpParser
 
-**`BinPhpParser(phpBinary: File? = null, parserBinary: File? = null)`** — Construct parser. Resolves PHP binary (bundled ZIP > system PATH) and publishes the bundled dump script `php_parse.php`. Pass explicit binaries to override; `parserBinary` must be a php-parser PHAR. Raises `ExternalBinaryNotFoundException` if no PHP found; raises `ExternalBinaryInvalidException` if `phpBinary` is below PHP 7.1.
+**`BinPhpParser(phpBinary: File? = null, parserBinary: File? = null)`** — Construct parser. Resolves PHP binary (bundled ZIP > system PATH) and publishes the bundled dump script `php_parse.php`. Pass explicit binaries to override; `parserBinary` must be a php-parser PHAR. Raises `ExternalBinaryNotFoundException` if no PHP found; raises `ExternalBinaryInvalidException` if `phpBinary` is below PHP 7.4.
 
 **`target: File`** — PHP source file to parse. Required. Raises `ExternalBinaryArgumentMissException` if unset at `execute()`.
 

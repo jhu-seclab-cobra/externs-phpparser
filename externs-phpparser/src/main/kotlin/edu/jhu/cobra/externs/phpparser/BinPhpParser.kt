@@ -5,8 +5,8 @@ import java.io.File
 import kotlin.io.path.Path
 import kotlin.io.path.div
 
-// Lowest interpreter version able to run the bundled php-parser PHAR.
-private const val MIN_PHP_VERSION = "7.1"
+// Lowest interpreter version able to run the bundled php-parser PHAR: its Composer platform check requires 7.4.
+private const val MIN_PHP_VERSION = "7.4"
 
 // Interpreter release bundled as classpath zip resources.
 private const val PHP_CLI_VERSION = "8.4"
