@@ -41,7 +41,7 @@ externs-phpparser is the PHP parsing adapter in the Cobra analysis pipeline, tra
 
 - **Name:** Binary Resolution
   - **Definition:** Locating a valid PHP interpreter and php-parser PHAR before any parse runs, so that execution never starts against a missing or unusable binary.
-  - **Scope:** Includes the priority chain — caller-supplied path, bundled archive extraction with integrity verification, system PATH search — and the minimum-version check on the interpreter. Excludes installing PHP.
+  - **Scope:** Includes the priority chain — caller-supplied path, bundled archive extraction with integrity verification, system PATH search — and the minimum-version check on the interpreter. The minimum is the lowest version the bundled PHAR runs on, PHP 7.4 (user decision PA5). Excludes installing PHP.
   - **Relationships:** Uses Platform Normalization to select the bundled variant and Integrity Verification to decide whether extraction is needed; precedes Process Execution.
 
 - **Name:** Dump Script
