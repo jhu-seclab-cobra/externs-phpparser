@@ -25,6 +25,10 @@ package edu.jhu.cobra.externs.phpparser
  * - `File crc32ChecksumString should return null for nonexistent file` — null for missing file via File extension.
  * - `Path crc32ChecksumString should match the CRC32 check value` — "123456789" hashes to cbf43926.
  * - `Path crc32ChecksumString should return zero for an empty file` — empty input hashes to 00000000.
+ * - `ByteArray crc32ChecksumString should match the CRC32 check value` — "123456789" hashes to cbf43926.
+ * - `ByteArray crc32ChecksumString should equal the checksum of the same file` — one form for memory and disk.
+ * - `publishFile should write the stream and create missing parent directories` — content lands in place.
+ * - `publishFile should replace an existing target` — a stale file is overwritten.
  */
 
 import org.junit.jupiter.api.io.TempDir
@@ -280,6 +284,32 @@ internal class ArchiveExtractionTest {
     fun `Path crc32ChecksumString should return zero for an empty file`() {
         val tempFile = Files.createTempFile(tempDir, "crc-empty", ".txt")
         assertEquals("00000000", tempFile.crc32ChecksumString)
+    }
+
+    @Test
+    fun `ByteArray crc32ChecksumString should match the CRC32 check value`() {
+        assertEquals("cbf43926", "123456789".toByteArray(Charsets.US_ASCII).crc32ChecksumString)
+    }
+
+    @Test
+    fun `ByteArray crc32ChecksumString should equal the checksum of the same file`() {
+        val content = byteArrayOf(0x00, 0x7f, 0xff.toByte())
+        val tempFile = Files.createTempFile(tempDir, "crc-bytes", ".bin").apply { toFile().writeBytes(content) }
+        assertEquals(tempFile.crc32ChecksumString, content.crc32ChecksumString)
+    }
+
+    @Test
+    fun `publishFile should write the stream and create missing parent directories`() {
+        val outPath = tempDir.resolve("a/b/published.txt")
+        publishFile(ByteArrayInputStream("content".toByteArray()), outPath)
+        assertEquals("content", outPath.toFile().readText())
+    }
+
+    @Test
+    fun `publishFile should replace an existing target`() {
+        val outPath = tempDir.resolve("published.txt").apply { toFile().writeText("stale") }
+        publishFile(ByteArrayInputStream("fresh".toByteArray()), outPath)
+        assertEquals("fresh", outPath.toFile().readText())
     }
 
     // --- helpers ---

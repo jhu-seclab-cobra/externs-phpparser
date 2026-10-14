@@ -18,7 +18,7 @@ if (result.code == 0) println(result.output.readText())
 
 ### BinPhpParser
 
-**`BinPhpParser(phpBinary: File? = null, parserBinary: File? = null)`** — Construct parser. Resolves PHP binary (bundled ZIP > system PATH). Pass explicit binaries to override. Raises `ExternalBinaryNotFoundException` if no PHP found; raises `ExternalBinaryInvalidException` if `phpBinary` is below PHP 7.1.
+**`BinPhpParser(phpBinary: File? = null, parserBinary: File? = null)`** — Construct parser. Resolves PHP binary (bundled ZIP > system PATH) and publishes the bundled dump script `php_parse.php`. Pass explicit binaries to override; `parserBinary` must be a php-parser PHAR. Raises `ExternalBinaryNotFoundException` if no PHP found; raises `ExternalBinaryInvalidException` if `phpBinary` is below PHP 7.1.
 
 **`target: File`** — PHP source file to parse. Required. Raises `ExternalBinaryArgumentMissException` if unset at `execute()`.
 
@@ -76,7 +76,7 @@ if (result.code == 0) println(result.output.readText())
 | Option | Property | CLI Flag | Effect |
 |--------|----------|----------|--------|
 | Dump S-expr | `DumpType.S_EXPR` | `--dump` | Human-readable indented dump (default) |
-| Dump JSON | `DumpType.JSON` | `--json-dump` | JSON array of Stmt nodes with `nodeType` + `attributes` + subnodes |
+| Dump JSON | `DumpType.JSON` | `--json-dump` | JSON array of Stmt nodes with `nodeType` + `attributes` + subnodes; bytes that are not valid UTF-8 become U+FFFD, offsets index the unchanged file |
 | Dump var | `DumpType.VAR` | `--var-dump` | PHP `var_dump()` output for exact structure inspection |
 | Pretty print | `doPrettyPrint` | `--pretty-print` | Regenerate PHP source from AST (round-trip test) |
 | Name resolution | `doResolveName` | `--resolve-names` | Apply `NameResolver` visitor — resolves use/alias/namespace names to FQN |

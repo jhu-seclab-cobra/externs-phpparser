@@ -10,9 +10,11 @@ package edu.jhu.cobra.externs.phpparser
  * - `should produce correct command array with no options enabled` — minimal command
  * - `should skip false boolean options in command array` — false excluded
  * - `should set name resolution option in command array` — --resolve-names flag
+ * - `should run the dump script against the parser binary` — interpreter, dump script, parser PHAR order
  */
 
 import org.junit.jupiter.api.io.TempDir
+import java.io.File
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -111,5 +113,19 @@ internal class BinPhpParserConfigurationTest {
 
         val cmd = parser.getCommandArray()
         assertTrue(cmd.contains("--resolve-names"))
+    }
+
+    @Test
+    fun `should run the dump script against the parser binary`() {
+        val phpFile = createPhpFile(tempDir, "<?php echo 1;")
+        val parser =
+            BinPhpParser().apply {
+                target = phpFile
+                dumpType = BinPhpParser.DumpType.JSON
+            }
+
+        val cmd = parser.getCommandArray()
+        assertTrue(File(cmd[1]).name.matches(Regex("php_parse-[0-9a-f]{8}\\.php")), "Dump script expected: ${cmd.toList()}")
+        assertEquals("php-parser-5.7.0", File(cmd[2]).name)
     }
 }

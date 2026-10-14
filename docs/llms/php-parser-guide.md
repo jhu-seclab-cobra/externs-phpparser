@@ -23,10 +23,10 @@ val json = result.output.readText()
 PHP source file
   → BinPhpParser (Kotlin wrapper)
     → php-cli binary (bundled or system)
-      → php-parser.phar (nikic/PHP-Parser v5.7.0)
+      → php_parse.php dump script (bundled), loading php-parser.phar (nikic/PHP-Parser v5.7.0)
         → Lexer → Parser → AST
         → NameResolver visitor (if --resolve-names)
-        → JSON serializer (if --json-dump)
+        → JSON serializer (if --json-dump): invalid UTF-8 → U+FFFD; encoding failure → non-zero exit
   → BinaryResult(code, output: File)
     → JSON text: array of Stmt nodes
 ```

@@ -23,9 +23,8 @@ private const val CRC_BUFFER_SIZE = 16384
 /**
  * Extracts the first ZIP entry matching one of [fromZipPath] to [toOutPath].
  *
- * The entry is staged as a unique sibling file and moved into place atomically, so concurrent
- * readers — including other JVMs extracting the same archive — only ever observe an absent or
- * complete [toOutPath], never a partially written one.
+ * The entry is published atomically, so concurrent readers — including other JVMs extracting the
+ * same archive — only ever observe an absent or complete [toOutPath], never a partially written one.
  *
  * @throws ExternalBinaryNotFoundException when no entry matches any of [fromZipPath].
  */
@@ -34,8 +33,6 @@ public fun extractFileFromZip(
     toOutPath: Path,
     vararg fromZipPath: Path,
 ) {
-    toOutPath.createParentDirectories()
-
     fun String.uniform() = replace(oldChar = '\\', newChar = '/')
     ZipInputStream(zipInputStream).use { zip ->
         val uniTargets = fromZipPath.map { it.toString().uniform() }
@@ -44,18 +41,24 @@ public fun extractFileFromZip(
             inZipEntry = zip.nextEntry
         } while (inZipEntry != null && inZipEntry.name.uniform() !in uniTargets)
         if (inZipEntry == null) throw ExternalBinaryNotFoundException(uniTargets.joinToString(), "the zip archive")
-        stageAndPublish(zip, toOutPath)
+        publishFile(zip, toOutPath)
     }
 }
 
-// Writes the entry stream to a unique sibling then renames it over the target in one step.
-private fun stageAndPublish(
-    entryStream: InputStream,
+/**
+ * Writes [inputStream] to [toOutPath], creating its parent directories.
+ *
+ * The content is staged as a unique sibling file and moved into place atomically, so concurrent
+ * readers only ever observe an absent or complete [toOutPath], never a partially written one.
+ */
+internal fun publishFile(
+    inputStream: InputStream,
     toOutPath: Path,
 ) {
+    toOutPath.createParentDirectories()
     val stagePath = createTempFile(toOutPath.parent, ".${toOutPath.fileName}", ".part")
     try {
-        Files.copy(entryStream, stagePath, REPLACE_EXISTING)
+        Files.copy(inputStream, stagePath, REPLACE_EXISTING)
         try {
             Files.move(stagePath, toOutPath, ATOMIC_MOVE)
         } catch (ignored: AtomicMoveNotSupportedException) {
@@ -66,6 +69,13 @@ private fun stageAndPublish(
         stagePath.deleteIfExists()
     }
 }
+
+/** CRC32 checksum of the bytes as lowercase hex string, in the form of [Path.crc32ChecksumString]. */
+internal val ByteArray.crc32ChecksumString: String
+    get() = CRC32().apply { update(this@crc32ChecksumString) }.value.toCrc32String()
+
+// Fixed-width lowercase hex, so equal checksums compare equal as strings.
+private fun Long.toCrc32String(): String = "%08x".format(this)
 
 /** CRC32 checksum as lowercase hex string, or null if the file does not exist. */
 public val Path.crc32ChecksumString: String?
@@ -79,7 +89,7 @@ public val Path.crc32ChecksumString: String?
                 crc.update(buffer, 0, bytesRead)
             }
         }
-        return "%08x".format(crc.value)
+        return crc.value.toCrc32String()
     }
 
 /** CRC32 checksum as lowercase hex string, or null if the file does not exist. */

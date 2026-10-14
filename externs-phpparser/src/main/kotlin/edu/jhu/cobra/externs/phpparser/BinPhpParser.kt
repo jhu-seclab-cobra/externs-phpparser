@@ -44,11 +44,14 @@ private val BUNDLED_BINARY_CRC32 =
         "php-parser-$PARSER_VERSION" to "95f828b5",
     )
 
+// Classpath resource of the Dump Script, run with the parser PHAR as its first argument.
+private const val DUMP_SCRIPT_RESOURCE = "php_parse.php"
+
 /**
  * Parses PHP files into ASTs using the php-parser binary.
  *
  * @param phpBinary PHP interpreter binary, or null to auto-detect.
- * @param parserBinary php-parser binary, or null to auto-detect.
+ * @param parserBinary php-parser PHAR, which the Dump Script loads, or null to auto-detect.
  */
 public class BinPhpParser(
     phpBinary: File? = null,
@@ -66,6 +69,8 @@ public class BinPhpParser(
     private val phpBinaryFile: File = resolvePhpBinary(phpBinary)
 
     private val parserBinaryFile: File = parserBinary ?: resolveBundledParser()
+
+    private val dumpScriptFile: File = resolveDumpScript()
 
     // Validates a caller-supplied interpreter or resolves one from the bundle or the system PATH.
     private fun resolvePhpBinary(phpBinary: File?): File {
@@ -120,6 +125,21 @@ public class BinPhpParser(
         return expFilePath.toFile()
     }
 
+    // Publishes the Dump Script under its checksum, so a changed script is a changed command line.
+    private fun resolveDumpScript(): File {
+        val scriptBytes =
+            Thread
+                .currentThread()
+                .contextClassLoader
+                .getResourceAsStream(DUMP_SCRIPT_RESOURCE)
+                ?.use { it.readBytes() }
+                ?: throw ExternalBinaryNotFoundException(DUMP_SCRIPT_RESOURCE, "the classpath resources")
+        val scriptCrc32 = scriptBytes.crc32ChecksumString
+        val expFilePath = this.workTmpDir / "php_parse-$scriptCrc32.php"
+        if (expFilePath.crc32ChecksumString != scriptCrc32) publishFile(scriptBytes.inputStream(), expFilePath)
+        return expFilePath.toFile()
+    }
+
     private fun searchSystemPhp(): File? = searchBin("php")?.takeIf { isPhpVersionValid(it, MIN_PHP_VERSION) }
 
     /**
@@ -150,6 +170,7 @@ public class BinPhpParser(
     override fun getCommandArray(): Array<String> =
         buildList {
             add(phpBinaryFile.absolutePath)
+            add(dumpScriptFile.absolutePath)
             add(parserBinaryFile.absolutePath)
             for ((key, value) in allOptions) if (value is Boolean && value) add(key)
             add(dumpType.opt)
