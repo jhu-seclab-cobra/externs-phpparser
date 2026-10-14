@@ -46,7 +46,7 @@ externs-phpparser is the PHP parsing adapter in the Cobra analysis pipeline, tra
 
 - **Name:** Dump Script
   - **Definition:** The wrapper's own copy of php-parser's command-line script `php-parse`, run by the interpreter with the parser PHAR as its first argument, so the wrapper decides how the AST is encoded.
-  - **Scope:** Includes the operations, flags, header lines, and exit codes of `php-parse` for one target file. Differs from `php-parse` only in the JSON dump: a byte sequence that is not valid UTF-8 becomes U+FFFD, and an encoding failure exits non-zero instead of printing nothing (user decision PA3). Excludes the parser itself, which stays in the PHAR.
+  - **Scope:** Includes the operations, flags, header lines, and exit codes of `php-parse` for one target file. Differs from `php-parse` only in the JSON dump: a byte sequence that is not valid UTF-8 becomes U+FFFD, and an encoding failure exits non-zero instead of printing nothing (user decision PA3); the dump is compact and written by walking the AST with an explicit stack, so no depth limit drops a file PHP runs (user decision PA4, [spec.md](spec.md)). Excludes the parser itself, which stays in the PHAR.
   - **Relationships:** Published from the classpath by Binary Resolution under a name that carries its checksum; first component after the interpreter in the command line built by Process Execution.
 
 - **Name:** Platform Normalization
@@ -106,6 +106,8 @@ Software structure for these concepts: [design.md](design.md).
 - **Boundary:** The bundled interpreter archive is missing from the classpath, and no system PHP at or above the minimum version exists on PATH. Binary Resolution fails on construction — fail-fast, no silent fallback.
 
 - **Boundary:** A Latin-1 file holds `"caf\xe9"`, or a literal holds `"\xff"`. PHP reads the bytes as written; the JSON dump carries U+FFFD in their place, exits 0, and its offsets index the unchanged file.
+
+- **Boundary:** A file holds `$x = 1 . 1 . … . 1;` with 5000 `. 1` terms. PHP runs it; the AST nests one level per operation, past where `json_encode` stops. The JSON dump carries all 5001 literals and exits 0.
 
 - **Boundary:** The parser process hangs. After the fixed one-minute liveness backstop, the process is terminated and reaped, and a Binary Result with code -1 and a timeout note in its output file is returned.
 

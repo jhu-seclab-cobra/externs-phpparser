@@ -3,6 +3,7 @@
 | File | Content |
 |------|---------|
 | [concept.md](concept.md) | Problem, scope, terminology, data flow, scenarios |
+| [spec.md](spec.md) | JSON dump writer — explicit-stack walk, value kinds, termination |
 | [design.md](design.md) | Class/function specs — AbcBinary, BinPhpParser, BinaryResult, helpers |
 | [impl.md](impl.md) | Library APIs, toolchain, developer notes — php-parser, NameResolver |
 | [performance.md](performance.md) | Benchmarks and optimization log |
