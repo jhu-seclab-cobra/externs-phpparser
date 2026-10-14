@@ -2,8 +2,9 @@
 
 /*
  * Derived from bin/php-parse of nikic/php-parser. It runs against a php-parser PHAR given as the
- * first argument, parses exactly one file, and encodes the JSON dump with invalid UTF-8 replaced
- * by U+FFFD, exiting non-zero when the encoding fails.
+ * first argument, parses exactly one file, and writes the JSON dump as compact json_encode text with
+ * invalid UTF-8 replaced by U+FFFD. The dump walks the AST with an explicit stack, so no nesting depth
+ * limit applies, and it exits non-zero when the encoding fails.
  *
  * Copyright (c) 2011, Nikita Popov
  * All rights reserved.
@@ -36,6 +37,9 @@
 
 // The alias the PHAR's own stub maps, so its autoloader resolves whatever the PHAR file is named.
 const PARSER_PHAR_ALIAS = 'php-parser.phar';
+
+// Flags of every json_encode call of the dump: invalid UTF-8 becomes U+FFFD and a failure throws.
+const DUMP_JSON_FLAGS = JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR;
 
 if (count($argv) < 2 || !is_file($argv[1])) {
     showHelp("Must specify the php-parser PHAR as the first argument.");
@@ -117,11 +121,67 @@ foreach ($operations as $operation) {
 // JSON carries only UTF-8 text: each invalid byte sequence becomes U+FFFD, and a failure ends the run.
 function encodeJson(array $stmts) {
     try {
-        return json_encode($stmts, JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+        return writeJson($stmts);
     } catch (JsonException $exception) {
         fwrite(STDERR, "JSON encoding failed: " . $exception->getMessage() . "\n");
         exit(1);
     }
+}
+
+// One open JSON container of the dump: its member keys and values, and the next member to write.
+final class JsonFrame {
+    public array $keys;
+    public array $values;
+    public bool $isList;
+    public int $cursor = 0;
+
+    // A PHP array is a JSON array when its keys are 0..n-1 in order, json_encode's own rule.
+    public function __construct(array $container) {
+        $this->keys = array_keys($container);
+        $this->values = array_values($container);
+        $this->isList = $container === [] || $this->keys === range(0, count($container) - 1);
+    }
+}
+
+// Writes the text json_encode would write for $root, keeping open containers on an explicit stack.
+function writeJson(array $root) {
+    $stack = [];
+    $text = pushJsonFrame($stack, $root);
+    while ($stack) {
+        $frame = end($stack);
+        if ($frame->cursor === count($frame->values)) {
+            $text .= $frame->isList ? ']' : '}';
+            array_pop($stack);
+            continue;
+        }
+        if ($frame->cursor > 0) {
+            $text .= ',';
+        }
+        if (!$frame->isList) {
+            $text .= json_encode((string) $frame->keys[$frame->cursor], DUMP_JSON_FLAGS) . ':';
+        }
+        $value = resolveJsonValue($frame->values[$frame->cursor++]);
+        $text .= is_array($value) ? pushJsonFrame($stack, $value) : json_encode($value, DUMP_JSON_FLAGS);
+    }
+    return $text;
+}
+
+// Opens $container on the stack and returns its opening bracket.
+function pushJsonFrame(array &$stack, array $container) {
+    $frame = new JsonFrame($container);
+    $stack[] = $frame;
+    return $frame->isList ? '[' : '{';
+}
+
+// A node serializes one level at a time; a container or a leaf is what remains.
+function resolveJsonValue($value) {
+    while ($value instanceof JsonSerializable) {
+        $value = $value->jsonSerialize();
+    }
+    if (is_object($value)) {
+        throw new JsonException('Unsupported object of class ' . get_class($value));
+    }
+    return $value;
 }
 
 function formatErrorMessage(PhpParser\Error $e, $code, $withColumnInfo) {
@@ -144,7 +204,7 @@ Operations is a list of the following options (--dump by default):
 
     -d, --dump              Dump nodes using NodeDumper
     -p, --pretty-print      Pretty print file using PrettyPrinter\Standard
-    -j, --json-dump         Print json_encode() result, invalid UTF-8 replaced by U+FFFD
+    -j, --json-dump         Print compact json_encode() text, no depth limit, invalid UTF-8 as U+FFFD
         --var-dump          var_dump() nodes (for exact structure)
     -N, --resolve-names     Resolve names using NodeVisitor\NameResolver
     -c, --with-column-info  Show column-numbers for errors (if available)

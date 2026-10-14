@@ -26,7 +26,7 @@ PHP source file
       → php_parse.php dump script (bundled), loading php-parser.phar (nikic/PHP-Parser v5.7.0)
         → Lexer → Parser → AST
         → NameResolver visitor (if --resolve-names)
-        → JSON serializer (if --json-dump): invalid UTF-8 → U+FFFD; encoding failure → non-zero exit
+        → JSON writer (if --json-dump): compact, explicit stack, no depth limit; invalid UTF-8 → U+FFFD; encoding failure → non-zero exit
   → BinaryResult(code, output: File)
     → JSON text: array of Stmt nodes
 ```
