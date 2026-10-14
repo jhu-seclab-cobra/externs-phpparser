@@ -4,7 +4,7 @@
  * Derived from bin/php-parse of nikic/php-parser. It runs against a php-parser PHAR given as the
  * first argument, parses exactly one file, and writes the JSON dump as compact json_encode text with
  * invalid UTF-8 replaced by U+FFFD. The dump walks the AST with an explicit stack, so no nesting depth
- * limit applies, and it exits non-zero when the encoding fails.
+ * limit applies, an infinite float is written as 1e999, and it exits non-zero when the encoding fails.
  *
  * Copyright (c) 2011, Nikita Popov
  * All rights reserved.
@@ -40,6 +40,9 @@ const PARSER_PHAR_ALIAS = 'php-parser.phar';
 
 // Flags of every json_encode call of the dump: invalid UTF-8 becomes U+FFFD and a failure throws.
 const DUMP_JSON_FLAGS = JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR;
+
+// A JSON number past the double range, which IEEE 754 readers read back as positive infinity.
+const INFINITE_FLOAT_JSON = '1e999';
 
 if (count($argv) < 2 || !is_file($argv[1])) {
     showHelp("Must specify the php-parser PHAR as the first argument.");
@@ -161,9 +164,17 @@ function writeJson(array $root) {
             $text .= json_encode((string) $frame->keys[$frame->cursor], DUMP_JSON_FLAGS) . ':';
         }
         $value = resolveJsonValue($frame->values[$frame->cursor++]);
-        $text .= is_array($value) ? pushJsonFrame($stack, $value) : json_encode($value, DUMP_JSON_FLAGS);
+        $text .= is_array($value) ? pushJsonFrame($stack, $value) : encodeJsonLeaf($value);
     }
     return $text;
+}
+
+// json_encode's text for a leaf, except an infinite float json_encode rejects; NaN still throws.
+function encodeJsonLeaf($value) {
+    if (is_float($value) && is_infinite($value)) {
+        return $value > 0 ? INFINITE_FLOAT_JSON : '-' . INFINITE_FLOAT_JSON;
+    }
+    return json_encode($value, DUMP_JSON_FLAGS);
 }
 
 // Opens $container on the stack and returns its opening bracket.

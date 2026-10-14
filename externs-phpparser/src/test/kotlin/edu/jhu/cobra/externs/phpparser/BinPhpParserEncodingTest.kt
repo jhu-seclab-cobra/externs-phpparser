@@ -1,7 +1,7 @@
 package edu.jhu.cobra.externs.phpparser
 
 /*
- * Tests for the JSON encoding of the Dump Script — bytes that are not valid UTF-8 and encoding failures.
+ * Tests for the JSON encoding of the Dump Script — bytes that are not valid UTF-8, deep ASTs and infinite floats.
  *
  * - `invalid UTF-8 byte in a literal should dump as U+FFFD` — raw 0xff inside a string literal
  * - `escaped invalid byte in a literal should dump as U+FFFD` — `"\xff"` escape decoded into the value
@@ -10,7 +10,7 @@ package edu.jhu.cobra.externs.phpparser
  * - `offsets should index the unchanged file bytes` — startFilePos/endFilePos after an invalid byte
  * - `dump should equal json_encode output` — compact text of json_encode on a sample file
  * - `deep AST should dump every node` — 5000-term `.` chain, deeper than json_encode reaches
- * - `encoding failure should exit non-zero` — an infinite float literal json_encode rejects
+ * - `infinite float literal should dump as 1e999` — `1e999`, which json_encode rejects, as a JSON number
  */
 
 import edu.jhu.cobra.externs.phpparser.binary.BinaryResult
@@ -20,7 +20,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -107,9 +106,9 @@ internal class BinPhpParserEncodingTest {
     }
 
     @Test
-    fun `encoding failure should exit non-zero`() {
+    fun `infinite float literal should dump as 1e999`() {
         val result = dumpJson("<?php \$x = 1e999;")
-        assertNotEquals(0, result.code, "A failed encoding should not report success")
-        assertTrue(result.output.readText().contains("Inf and NaN cannot be JSON encoded"))
+        assertEquals(0, result.code, "An infinite float literal PHP runs should dump")
+        assertTrue(result.output.readText().contains("\"value\":1e999"), "INF should dump as 1e999")
     }
 }
