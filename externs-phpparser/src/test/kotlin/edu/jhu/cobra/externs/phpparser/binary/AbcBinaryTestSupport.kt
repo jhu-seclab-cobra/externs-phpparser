@@ -11,7 +11,7 @@ private const val PROCESS_POLL_INTERVAL_MILLIS = 100L
  * - [EchoBinary] — echoes a message; exercises Argument/Option delegates and command assembly.
  * - [SleepBinary] — sleeps; tests override the execution backstop to observe timeouts quickly.
  * - [FailBinary] — exits non-zero; exercises failure paths.
- * - [StubbornBinary] — ignores SIGTERM; exercises forcible reaping with shortened backstops.
+ * - [StubbornBinary] — ignores SIGTERM; starts its short backstop only after PID readiness.
  * - [MissingBinary] — command names a nonexistent executable; exercises the spawn-failure path.
  * - [awaitProcess] — waits for the fixture child's own readiness PID.
  * - [isProcessAlive] — probes only that owned PID and rejects probe failures.
@@ -48,12 +48,17 @@ internal class MissingBinary : AbcBinary() {
 }
 
 // Publishes its own PID after installing the trap so tests can check that exact process.
-internal class StubbornBinary(
+internal open class StubbornBinary(
     private val pidFile: Path,
-    override val executionTimeoutMillis: Long,
+    private val timeoutMillis: Long,
     override val terminationGraceMillis: Long,
 ) : AbcBinary() {
     private val script = "trap '' TERM; printf '%s' \"\$\$\" > \"\$1\"; while :; do sleep 1; done"
+
+    override val executionTimeoutMillis: Long by lazy {
+        awaitProcess(pidFile)
+        timeoutMillis
+    }
 
     override fun getCommandArray(): Array<String> = arrayOf("sh", "-c", script, "cobra-test", pidFile.toString())
 }

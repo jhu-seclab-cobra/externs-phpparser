@@ -11,7 +11,7 @@ package edu.jhu.cobra.externs.phpparser.binary
  * - `should not cache a timed-out run` — a backstop expiry leaves no cache file and re-executes.
  * - `should return code -1 on timeout` — a process outliving the backstop returns code -1.
  * - `should reap TERM-ignoring process before returning on timeout` — destroy escalates to destroyForcibly
- *   so no process survives past the timeout return.
+ *   so no process survives past the timeout return, including startup delayed by a slow sh on PATH.
  * - `timeout output should render duration in milliseconds` — no ISO-8601 duration in the timeout message.
  * - `timeout output should stay inside workTmpDir` — no orphan temp file outside the working directory.
  * - `should complete within backstop without timing out` — a process finishing before the backstop succeeds.
@@ -29,7 +29,11 @@ package edu.jhu.cobra.externs.phpparser.binary
  */
 
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
+import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.concurrent.thread
@@ -131,10 +135,15 @@ internal class AbcBinaryExecutionTest {
         assertTrue(result.output.exists())
     }
 
-    @Test
-    fun `should reap TERM-ignoring process before returning on timeout`() {
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `should reap TERM-ignoring process before returning on timeout`(delayedStart: Boolean) {
         val pidFile = tempDir.resolve("timeout.pid")
-        val binary = StubbornBinary(pidFile, executionTimeoutMillis = 200, terminationGraceMillis = 200)
+        val searchPath = if (delayedStart) delayedShellPath() else System.getenv("PATH")
+        val binary =
+            object : StubbornBinary(pidFile, timeoutMillis = 200, terminationGraceMillis = 200) {
+                override fun getCommandArray(): Array<String> = arrayOf("/usr/bin/env", "PATH=$searchPath") + super.getCommandArray()
+            }
         binary.workTmpDir = tempDir
 
         val result = binary.execute()
@@ -143,6 +152,14 @@ internal class AbcBinaryExecutionTest {
         if (stillAlive) ProcessBuilder("kill", "-9", pid).start().waitFor()
         assertEquals(-1, result.code)
         assertFalse(stillAlive, "process ignoring SIGTERM must be force-killed before execute returns")
+    }
+
+    private fun delayedShellPath(): String {
+        val directory = Files.createDirectory(tempDir.resolve("slow-sh"))
+        val shell = directory.resolve("sh").toFile()
+        shell.writeText("#!/bin/sh\n/bin/sleep 1\nexec /bin/sh \"\$@\"\n", Charsets.UTF_8)
+        check(shell.setExecutable(true))
+        return "$directory${File.pathSeparator}${System.getenv("PATH")}"
     }
 
     @Test
@@ -202,7 +219,7 @@ internal class AbcBinaryExecutionTest {
     @Test
     fun `interrupted wait should reap the process and preserve the interrupt flag`() {
         val pidFile = tempDir.resolve("interrupt.pid")
-        val binary = StubbornBinary(pidFile, executionTimeoutMillis = 60_000, terminationGraceMillis = 200)
+        val binary = StubbornBinary(pidFile, timeoutMillis = 60_000, terminationGraceMillis = 200)
         binary.workTmpDir = tempDir
 
         var thrown: Throwable? = null
