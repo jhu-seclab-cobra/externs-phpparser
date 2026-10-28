@@ -8,9 +8,15 @@
 - **Exceptions**: `ExternalBinaryNotFoundException`, `ExternalBinaryInvalidException`, `ExternalBinaryArgumentMissException` — all extend `RuntimeException`
 - **Dependency roles**: Data holders: `BinaryResult`, `BinPhpParser.DumpType`. Orchestrator: `BinPhpParser`. Helper: `AbcBinary` (process lifecycle framework, inputs by subclass override).
 - **Modules and visibility**: One Gradle module (`externs-phpparser`, `explicitApi()`). `AbcBinary` and `BinaryResult` are public in the `binary` subpackage; `BinPhpParser`, the exceptions, and the top-level helpers are public in the root package `edu.jhu.cobra.externs.phpparser`. `readPhpVersion` and `withConfigurationSnapshot` are internal.
-- **Named values** (all constants in code, each fixed by the bundled resources or the platform): `EXECUTION_TIMEOUT_MILLIS` and `TERMINATION_GRACE_MILLIS` (internal, `AbcBinary.kt`), `VERSION_PROBE_TIMEOUT_SECONDS` (internal) and `VERSION_COMPONENT_COUNT` (private, `PhpVersionValidation.kt`), `CRC_BUFFER_SIZE` (private, `ArchiveExtraction.kt`), `MIN_PHP_VERSION`, `PHP_CLI_VERSION`, `PARSER_VERSION`, `OS_TOKEN_BY_NAME_FRAGMENT`, `ARCH_TOKEN_BY_NAME_FRAGMENT`, `BUNDLED_BINARY_CRC32`, `DUMP_SCRIPT_RESOURCE` (private, `BinPhpParser.kt`).
+- **Named values** (all constants in code, each fixed by the bundled resources or the platform): `EXECUTION_TIMEOUT_MILLIS` and `TERMINATION_GRACE_MILLIS` (internal, `AbcBinary.kt`), `VERSION_PROBE_TIMEOUT_SECONDS` (internal) and `VERSION_COMPONENT_COUNT` (private, `PhpVersionValidation.kt`), `CRC_BUFFER_SIZE` (private, `ArchiveExtraction.kt`), `PARSER_VERSION` (public, `BinPhpParser.kt`, the bundled release used by graph-cache consumers), `MIN_PHP_VERSION`, `PHP_CLI_VERSION`, `OS_TOKEN_BY_NAME_FRAGMENT`, `ARCH_TOKEN_BY_NAME_FRAGMENT`, `BUNDLED_BINARY_CRC32`, `DUMP_SCRIPT_RESOURCE` (private, `BinPhpParser.kt`).
 
 `AbcBinary` defines the process execution framework: argument/option management via delegated properties, command array construction (abstract), process spawning bounded by a fixed liveness backstop, and output caching. `BinPhpParser` extends it with PHP-specific binary resolution (bundled extraction with CRC32 or system PATH search), platform normalization, and parser CLI flag assembly. `BinaryResult` is a passive data holder pairing exit code with output file reference. Stateless top-level helpers are split by responsibility: `ExecutableSearch.kt` (binary lookup), `PhpVersionValidation.kt` (interpreter version probing and comparison), `ArchiveExtraction.kt` (ZIP extraction, atomic publication, and CRC32 checksums), and `ScopedExecution.kt` (execution under temporary configuration).
+
+Each concurrent run owns a distinct `BinPhpParser`: resolved binary files, working directory,
+argument/option maps and execution settings belong to that instance. A mutable parser instance is
+not shared between runs. Executable lookup retains no result or mutable registry. File-level maps
+describe immutable bundled resources and platforms; shared extracted resources are published by
+[atomic file publication](#archiveextractionkt). Distinct executions write distinct output files.
 
 ## Class / Type Specifications
 

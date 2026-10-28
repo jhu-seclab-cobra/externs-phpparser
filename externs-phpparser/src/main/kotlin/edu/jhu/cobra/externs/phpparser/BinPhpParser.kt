@@ -11,8 +11,8 @@ private const val MIN_PHP_VERSION = "7.4"
 // Interpreter release bundled as classpath zip resources.
 private const val PHP_CLI_VERSION = "8.4"
 
-// php-parser PHAR release bundled as a classpath zip resource.
-private const val PARSER_VERSION = "5.7.0"
+/** The immutable bundled php-parser release, shared with consumers that key parsed graph caches. */
+public const val PARSER_VERSION: String = "5.7.0"
 
 // Substrings of `os.name` mapped to the platform token used in bundled resource names.
 private val OS_TOKEN_BY_NAME_FRAGMENT =

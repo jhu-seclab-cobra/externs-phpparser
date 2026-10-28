@@ -1,5 +1,10 @@
 package edu.jhu.cobra.externs.phpparser.binary
 
+import java.nio.file.Path
+
+private const val PROCESS_POLL_ATTEMPTS = 50
+private const val PROCESS_POLL_INTERVAL_MILLIS = 100L
+
 /*
  * Shared fixture binaries for [AbcBinary] tests.
  *
@@ -8,6 +13,8 @@ package edu.jhu.cobra.externs.phpparser.binary
  * - [FailBinary] — exits non-zero; exercises failure paths.
  * - [StubbornBinary] — ignores SIGTERM; exercises forcible reaping with shortened backstops.
  * - [MissingBinary] — command names a nonexistent executable; exercises the spawn-failure path.
+ * - [awaitProcess] — waits for the fixture child's own readiness PID.
+ * - [isProcessAlive] — probes only that owned PID and rejects probe failures.
  */
 
 internal class EchoBinary : AbcBinary() {
@@ -40,13 +47,34 @@ internal class MissingBinary : AbcBinary() {
     override fun getCommandArray(): Array<String> = arrayOf("/nonexistent-cobra-binary-xyz")
 }
 
-// Ignores SIGTERM; only SIGKILL ends it. The marker makes the process findable via pgrep.
+// Publishes its own PID after installing the trap so tests can check that exact process.
 internal class StubbornBinary(
-    marker: String,
+    private val pidFile: Path,
     override val executionTimeoutMillis: Long,
     override val terminationGraceMillis: Long,
 ) : AbcBinary() {
-    private val script = "trap '' TERM; while :; do sleep 1; done # $marker"
+    private val script = "trap '' TERM; printf '%s' \"\$\$\" > \"\$1\"; while :; do sleep 1; done"
 
-    override fun getCommandArray(): Array<String> = arrayOf("sh", "-c", script)
+    override fun getCommandArray(): Array<String> = arrayOf("sh", "-c", script, "cobra-test", pidFile.toString())
+}
+
+// The child publishes its PID only after it is ready to ignore TERM.
+internal fun awaitProcess(pidFile: Path): String {
+    repeat(PROCESS_POLL_ATTEMPTS) {
+        val pid = if (pidFile.toFile().exists()) pidFile.toFile().readText(Charsets.UTF_8) else ""
+        if (pid.toLongOrNull() != null && isProcessAlive(pid)) return pid
+        Thread.sleep(PROCESS_POLL_INTERVAL_MILLIS)
+    }
+    error("process did not publish a live PID at $pidFile")
+}
+
+internal fun isProcessAlive(pid: String): Boolean {
+    require(pid.toLong() > 0)
+    val command = ProcessBuilder("kill", "-0", pid).redirectErrorStream(true)
+    command.environment()["LC_ALL"] = "C"
+    val probe = command.start()
+    val output = probe.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+    val code = probe.waitFor()
+    check(code == 0 || "No such process" in output) { "Cannot inspect owned process $pid: $output" }
+    return code == 0
 }

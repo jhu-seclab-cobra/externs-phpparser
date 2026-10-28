@@ -30,6 +30,7 @@
 - Quality gate: `./gradlew detekt ktlintCheck build -q`; auto-format with `./gradlew ktlintFormat -q`.
 - Performance benchmarks are tagged `performance` and excluded from `test`; run `./gradlew performanceTest`.
 - Bundled binary checksums (`BUNDLED_BINARY_CRC32`) must be updated whenever a resource zip is replaced. The Dump Script needs no stored checksum: it is computed from the resource.
+- `edu.jhu.cobra.externs.phpparser.PARSER_VERSION` is the public immutable release constant used by bundled PHAR lookup and downstream graph cache keys; it names the `php-parser-<version>.zip` resource.
 - AST node reference (all nodeTypes, subnodes, constants, JSON format): [research/index.md](research/index.md).
 - JSON output: top-level is `Stmt[]` array. Each node has `"nodeType"` string + `"attributes"` object + subnode keys.
 - `attributes` always contains: `startLine`, `endLine`, `startTokenPos`, `endTokenPos`, `startFilePos`, `endFilePos`, `comments`.
@@ -42,6 +43,7 @@
 
 ### BinPhpParser
 
+- Create a distinct instance for each concurrent worker; binary ownership and shared resource publication: [design](design.md#design-overview).
 - `DumpType.JSON` (`--json-dump`) yields the JSON AST consumed downstream.
 - Parser output file (`BinaryResult.output`) contains raw JSON prepended with `====> File ...` header lines, which the Dump Script writes to stderr as `php-parse` does. Downstream parser must skip non-JSON prefix.
 - The Dump Script runs the operations in command-line order, as `php-parse` does: `--resolve-names` before the dump flag resolves names first.

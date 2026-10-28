@@ -31,7 +31,6 @@ package edu.jhu.cobra.externs.phpparser.binary
 import org.junit.jupiter.api.io.TempDir
 import java.io.IOException
 import java.nio.file.Path
-import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.concurrent.thread
 import kotlin.test.Test
@@ -134,16 +133,14 @@ internal class AbcBinaryExecutionTest {
 
     @Test
     fun `should reap TERM-ignoring process before returning on timeout`() {
-        val marker = "cobra-abc-reap-${UUID.randomUUID()}"
-        val binary = StubbornBinary(marker, executionTimeoutMillis = 200, terminationGraceMillis = 200)
+        val pidFile = tempDir.resolve("timeout.pid")
+        val binary = StubbornBinary(pidFile, executionTimeoutMillis = 200, terminationGraceMillis = 200)
         binary.workTmpDir = tempDir
 
         val result = binary.execute()
-        val survivor = ProcessBuilder("pgrep", "-f", marker).start()
-        survivor.waitFor()
-        val stillAlive = survivor.exitValue() == 0
-        // Reap any survivor so a failure does not leak a 60s process into the environment.
-        ProcessBuilder("pkill", "-9", "-f", marker).start().waitFor()
+        val pid = pidFile.toFile().readText(Charsets.UTF_8)
+        val stillAlive = isProcessAlive(pid)
+        if (stillAlive) ProcessBuilder("kill", "-9", pid).start().waitFor()
         assertEquals(-1, result.code)
         assertFalse(stillAlive, "process ignoring SIGTERM must be force-killed before execute returns")
     }
@@ -204,8 +201,8 @@ internal class AbcBinaryExecutionTest {
 
     @Test
     fun `interrupted wait should reap the process and preserve the interrupt flag`() {
-        val marker = "cobra-abc-interrupt-${UUID.randomUUID()}"
-        val binary = StubbornBinary(marker, executionTimeoutMillis = 60_000, terminationGraceMillis = 200)
+        val pidFile = tempDir.resolve("interrupt.pid")
+        val binary = StubbornBinary(pidFile, executionTimeoutMillis = 60_000, terminationGraceMillis = 200)
         binary.workTmpDir = tempDir
 
         var thrown: Throwable? = null
@@ -219,29 +216,18 @@ internal class AbcBinaryExecutionTest {
                     flagPreserved = Thread.currentThread().isInterrupted
                 }
             }
-        awaitProcessWithMarker(marker)
-        worker.interrupt()
-        worker.join()
-
-        val survivor = ProcessBuilder("pgrep", "-f", marker).start()
-        survivor.waitFor()
-        val stillAlive = survivor.exitValue() == 0
-        // Reap any survivor so a failure does not leak a 60s process into the environment.
-        ProcessBuilder("pkill", "-9", "-f", marker).start().waitFor()
+        val pid =
+            try {
+                awaitProcess(pidFile)
+            } finally {
+                worker.interrupt()
+                worker.join()
+            }
+        val stillAlive = isProcessAlive(pid)
+        if (stillAlive) ProcessBuilder("kill", "-9", pid).start().waitFor()
         assertTrue(thrown is InterruptedException, "execute must rethrow the interrupt, got: $thrown")
         assertTrue(flagPreserved, "the thread's interrupt flag must be restored before rethrowing")
         assertFalse(stillAlive, "the spawned process must not outlive an interrupted wait")
-    }
-
-    // Bounded poll until the marker process is running, so the interrupt lands during the wait.
-    private fun awaitProcessWithMarker(marker: String) {
-        repeat(50) {
-            val probe = ProcessBuilder("pgrep", "-f", marker).start()
-            probe.waitFor()
-            if (probe.exitValue() == 0) return
-            Thread.sleep(100)
-        }
-        error("process with marker $marker never appeared")
     }
 
     @Test
