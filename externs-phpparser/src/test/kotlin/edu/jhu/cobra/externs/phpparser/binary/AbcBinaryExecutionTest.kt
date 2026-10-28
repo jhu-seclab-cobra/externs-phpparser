@@ -29,6 +29,7 @@ package edu.jhu.cobra.externs.phpparser.binary
  */
 
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.api.parallel.Isolated
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.io.File
@@ -44,6 +45,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
+@Isolated
 internal class AbcBinaryExecutionTest {
     @TempDir
     lateinit var tempDir: Path

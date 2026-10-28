@@ -28,7 +28,7 @@
 
 - Toolchain: JDK 8 (foojay-resolved), Kotlin 2.4.20, ktlint 1.8.0 (plugin 14.2.0), detekt 1.23.8 with `config/detekt/detekt.yml`.
 - Quality gate: `./gradlew detekt ktlintCheck build -q`; auto-format with `./gradlew ktlintFormat -q`.
-- Process-reaping fixtures await their owned live PID after installing the TERM trap, once before the first shortened execution wait. The timeout test also runs with a slow `sh` on PATH; both cases retain the short timeout and require `kill -0` to prove the process has exited.
+- Process-reaping fixtures capture the real started `Process` in a test-only owner scope before readiness I/O. The scope covers readiness and execution and reaps a live process on every exit, including readiness errors; duration getters only return immutable values. Scoped constructor instrumentation matches the fixture command, is always removed, and runs in isolated tests. Timeout and readiness-failure tests use slow `sh` wrappers on PATH and retain `kill -0` liveness assertions.
 - Performance benchmarks are tagged `performance` and excluded from `test`; run `./gradlew performanceTest`.
 - Bundled binary checksums (`BUNDLED_BINARY_CRC32`) must be updated whenever a resource zip is replaced. The Dump Script needs no stored checksum: it is computed from the resource.
 - `edu.jhu.cobra.externs.phpparser.PARSER_VERSION` is the public immutable release constant used by bundled PHAR lookup and downstream graph cache keys; it names the `php-parser-<version>.zip` resource.

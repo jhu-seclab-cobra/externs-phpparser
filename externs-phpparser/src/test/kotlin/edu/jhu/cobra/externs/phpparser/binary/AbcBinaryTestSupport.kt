@@ -1,5 +1,10 @@
 package edu.jhu.cobra.externs.phpparser.binary
 
+import io.mockk.EqMatcher
+import io.mockk.every
+import io.mockk.mockkConstructor
+import io.mockk.unmockkConstructor
+import java.io.Closeable
 import java.nio.file.Path
 
 private const val PROCESS_POLL_ATTEMPTS = 50
@@ -11,7 +16,8 @@ private const val PROCESS_POLL_INTERVAL_MILLIS = 100L
  * - [EchoBinary] — echoes a message; exercises Argument/Option delegates and command assembly.
  * - [SleepBinary] — sleeps; tests override the execution backstop to observe timeouts quickly.
  * - [FailBinary] — exits non-zero; exercises failure paths.
- * - [StubbornBinary] — ignores SIGTERM; starts its short backstop only after PID readiness.
+ * - [StubbornBinary] — owns its real Process while awaiting readiness and running the short backstop.
+ * - [ReadyProcess] — reaps the owned process on every exit, including readiness errors.
  * - [MissingBinary] — command names a nonexistent executable; exercises the spawn-failure path.
  * - [awaitProcess] — waits for the fixture child's own readiness PID.
  * - [isProcessAlive] — probes only that owned PID and rejects probe failures.
@@ -50,17 +56,51 @@ internal class MissingBinary : AbcBinary() {
 // Publishes its own PID after installing the trap so tests can check that exact process.
 internal open class StubbornBinary(
     private val pidFile: Path,
-    private val timeoutMillis: Long,
+    timeoutMillis: Long,
     override val terminationGraceMillis: Long,
 ) : AbcBinary() {
     private val script = "trap '' TERM; printf '%s' \"\$\$\" > \"\$1\"; while :; do sleep 1; done"
 
-    override val executionTimeoutMillis: Long by lazy {
-        awaitProcess(pidFile)
-        timeoutMillis
+    override val executionTimeoutMillis: Long = timeoutMillis
+
+    override fun execute(): BinaryResult {
+        val command = getCommandArray()
+        mockkConstructor(ProcessBuilder::class)
+        try {
+            return ReadyProcess(pidFile).use { owned ->
+                every { constructedWith<ProcessBuilder>(EqMatcher(command)).start() } answers {
+                    owned.started(callOriginal())
+                }
+                super.execute()
+            }
+        } catch (interrupt: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw interrupt
+        } finally {
+            unmockkConstructor(ProcessBuilder::class)
+        }
     }
 
     override fun getCommandArray(): Array<String> = arrayOf("sh", "-c", script, "cobra-test", pidFile.toString())
+}
+
+// Retains the actual child before readiness can fail; normal timeout handling still belongs to AbcBinary.
+private class ReadyProcess(
+    private val pidFile: Path,
+) : Closeable {
+    private var process: Process? = null
+
+    fun started(child: Process): Process {
+        check(process == null) { "The fixture must own only one process" }
+        process = child
+        awaitProcess(pidFile)
+        return child
+    }
+
+    override fun close() {
+        val child = process ?: return
+        if (child.isAlive) child.destroyForcibly().waitFor()
+    }
 }
 
 // The child publishes its PID only after it is ready to ignore TERM.
