@@ -2,6 +2,7 @@
 
 | File | Content |
 |------|---------|
+| [glossary/glossary.md](glossary/glossary.md) | Glossary — the JSON dump |
 | [concept.md](concept.md) | Problem, scope, terminology, data flow, scenarios |
 | [spec.md](spec.md) | JSON dump writer — explicit-stack walk, value kinds, termination |
 | [design.md](design.md) | Class/function specs — AbcBinary, BinPhpParser, BinaryResult, helpers |
