@@ -1,6 +1,7 @@
 package edu.jhu.cobra.externs.phpparser
 
 import edu.jhu.cobra.externs.phpparser.binary.AbcBinary
+import edu.jhu.cobra.externs.phpparser.binary.BinaryResult
 import java.io.File
 import kotlin.io.path.Path
 import kotlin.io.path.div
@@ -46,6 +47,17 @@ private val BUNDLED_BINARY_CRC32 =
 
 // Classpath resource of the Dump Script, run with the parser PHAR as its first argument.
 private const val DUMP_SCRIPT_RESOURCE = "php_parse.php"
+
+// Immutable per-run settings; copying it is the only way a setter changes the parser.
+private data class ParseConfig(
+    val target: File? = null,
+    val dumpType: BinPhpParser.DumpType = BinPhpParser.DumpType.S_EXPR,
+    val doPrettyPrint: Boolean = false,
+    val doResolveName: Boolean = false,
+    val doWithColInfo: Boolean = false,
+    val doWithPositions: Boolean = false,
+    val doWithRecovery: Boolean = false,
+)
 
 /**
  * Parses PHP files into ASTs using the php-parser binary.
@@ -142,38 +154,103 @@ public class BinPhpParser(
 
     private fun searchSystemPhp(): File? = searchBin("php")?.takeIf { isPhpVersionValid(it, MIN_PHP_VERSION) }
 
+    // Per-run configuration: the one value a scoped execution saves and restores.
+    private var config = ParseConfig()
+
     /**
      * The target PHP file to be parsed.
+     *
+     * @throws ExternalBinaryArgumentMissException when read before it is set.
      */
-    public var target: File by Argument("entryFile")
+    public var target: File
+        get() = config.target ?: throw ExternalBinaryArgumentMissException(TARGET_ARGUMENT)
+        set(value) {
+            config = config.copy(target = value)
+        }
 
     /**
      * The type of dump output to produce, defaults to simple expression output.
      */
-    public var dumpType: DumpType by Argument("dumpType", DumpType.S_EXPR)
+    public var dumpType: DumpType
+        get() = config.dumpType
+        set(value) {
+            config = config.copy(dumpType = value)
+        }
 
     /** Pretty-print the AST output. */
-    public var doPrettyPrint: Boolean by Option("--pretty-print", false)
+    public var doPrettyPrint: Boolean
+        get() = config.doPrettyPrint
+        set(value) {
+            config = config.copy(doPrettyPrint = value)
+        }
 
     /** Resolve names in the AST using NodeVisitor\NameResolver. */
-    public var doResolveName: Boolean by Option("--resolve-names", false)
+    public var doResolveName: Boolean
+        get() = config.doResolveName
+        set(value) {
+            config = config.copy(doResolveName = value)
+        }
 
     /** Include column information in output. */
-    public var doWithColInfo: Boolean by Option("--with-column-info", false)
+    public var doWithColInfo: Boolean
+        get() = config.doWithColInfo
+        set(value) {
+            config = config.copy(doWithColInfo = value)
+        }
 
     /** Include position information in output. */
-    public var doWithPositions: Boolean by Option("--with-positions", false)
+    public var doWithPositions: Boolean
+        get() = config.doWithPositions
+        set(value) {
+            config = config.copy(doWithPositions = value)
+        }
 
     /** Recover from parse errors instead of failing. */
-    public var doWithRecovery: Boolean by Option("--with-recovery", false)
+    public var doWithRecovery: Boolean
+        get() = config.doWithRecovery
+        set(value) {
+            config = config.copy(doWithRecovery = value)
+        }
 
-    override fun getCommandArray(): Array<String> =
-        buildList {
+    override fun getCommandArray(): Array<String> {
+        val current = config
+        val target = current.target ?: throw ExternalBinaryArgumentMissException(TARGET_ARGUMENT)
+        val flags =
+            listOf(
+                current.doPrettyPrint to "--pretty-print",
+                current.doResolveName to "--resolve-names",
+                current.doWithColInfo to "--with-column-info",
+                current.doWithPositions to "--with-positions",
+                current.doWithRecovery to "--with-recovery",
+            )
+        return buildList {
             add(phpBinaryFile.absolutePath)
             add(dumpScriptFile.absolutePath)
             add(parserBinaryFile.absolutePath)
-            for ((key, value) in allOptions) if (value is Boolean && value) add(key)
-            add(dumpType.opt)
+            for ((enabled, flag) in flags) if (enabled) add(flag)
+            add(current.dumpType.opt)
             add(target.absolutePath)
         }.toTypedArray()
+    }
+
+    /**
+     * Applies [tmpConfig] to this parser, executes, and restores the target, dump type and flags
+     * afterward, on normal completion, exception and interrupt. [workTmpDir] and [doCacheOutput]
+     * assigned in [tmpConfig] persist.
+     *
+     * @param tmpConfig configuration applied before execution.
+     * @return the execution result.
+     */
+    public fun executeWith(tmpConfig: BinPhpParser.() -> Unit): BinaryResult {
+        val saved = config
+        try {
+            tmpConfig()
+            return execute()
+        } finally {
+            config = saved
+        }
+    }
 }
+
+// Name the missing-argument exception reports for the target file.
+private const val TARGET_ARGUMENT = "entryFile"

@@ -13,7 +13,7 @@ private const val PROCESS_POLL_INTERVAL_MILLIS = 100L
 /*
  * Shared fixture binaries for [AbcBinary] tests.
  *
- * - [EchoBinary] — echoes a message; exercises Argument/Option delegates and command assembly.
+ * - [EchoBinary] — echoes a message.
  * - [SleepBinary] — sleeps; tests override the execution backstop to observe timeouts quickly.
  * - [FailBinary] — exits non-zero; exercises failure paths.
  * - [StubbornBinary] — owns its real Process while awaiting readiness and running the short backstop.
@@ -24,18 +24,9 @@ private const val PROCESS_POLL_INTERVAL_MILLIS = 100L
  */
 
 internal class EchoBinary : AbcBinary() {
-    var message: String by Argument<String>("message")
-    var nullableArg: String? by Argument<String?>("nullableArg")
-    var verbose: Boolean by Option("--verbose", false)
-    var outputFormat: String by Option("--format", "text")
-    var nullableOpt: String? by Option<String?>("--nullable")
+    var message: String = ""
 
-    override fun getCommandArray(): Array<String> =
-        buildList {
-            add("echo")
-            for ((key, value) in allOptions) if (value is Boolean && value) add(key)
-            add(message)
-        }.toTypedArray()
+    override fun getCommandArray(): Array<String> = arrayOf("echo", message)
 }
 
 internal class SleepBinary(

@@ -51,13 +51,11 @@ val result = parser.executeWith {
 
 ## API
 
-**`BinPhpParser(phpBinary?, parserBinary?)`** -- extends `AbcBinary`. Properties: `target`, `dumpType` (`S_EXPR`/`VAR`/`JSON`), `doPrettyPrint` (`--pretty-print`), `doResolveName` (`--resolve-names`), `doWithColInfo` (`--with-column-info`), `doWithPositions` (`--with-positions`), `doWithRecovery` (`--with-recovery`).
+**`BinPhpParser(phpBinary?, parserBinary?)`** -- extends `AbcBinary`. `executeWith { }` -- temporary config override; restores `target`, `dumpType` and the flags on return, exception and interrupt (`workTmpDir` and `doCacheOutput` assigned inside persist). Properties: `target`, `dumpType` (`S_EXPR`/`VAR`/`JSON`), `doPrettyPrint` (`--pretty-print`), `doResolveName` (`--resolve-names`), `doWithColInfo` (`--with-column-info`), `doWithPositions` (`--with-positions`), `doWithRecovery` (`--with-recovery`).
 
 **`AbcBinary`** -- abstract process runner. `execute(): BinaryResult`, `doCacheOutput: Boolean`. Execution is bounded by a fixed internal 1-minute liveness backstop.
 
 **`BinaryResult(code: Int, output: File)`** -- exit code 0 = success, -1 = timeout.
-
-**`executeWith { }`** -- temporary config override, restores state on return and on exception.
 
 **`searchBin(name): File?`** -- find executables on system PATH.
 

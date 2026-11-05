@@ -34,6 +34,8 @@ if (result.code == 0) println(result.output.readText())
 
 **`doWithRecovery: Boolean`** — Enable `--with-recovery`. Default `false`.
 
+**`executeWith(tmpConfig: BinPhpParser.() -> Unit): BinaryResult`** — Execute with temporary config. Restores `target`, `dumpType` and the five flags afterward; `workTmpDir` and `doCacheOutput` assigned inside persist.
+
 ### AbcBinary (superclass)
 
 **`execute(): BinaryResult`** — Run the external binary. Returns cached result if `doCacheOutput` is `true` and cache hit. Returns code `-1` after the fixed 1-minute timeout; the timeout is not configurable.
@@ -50,8 +52,6 @@ if (result.code == 0) println(result.output.readText())
 - `output`: `File` containing stdout+stderr.
 
 ### Top-Level Functions
-
-**`executeWith(tmpConfig: T.() -> Unit): BinaryResult`** — Execute with temporary config. Backs up and restores all arguments/options.
 
 **`searchBin(name: String): File?`** — Search system PATH for executable. Returns first match or `null`.
 

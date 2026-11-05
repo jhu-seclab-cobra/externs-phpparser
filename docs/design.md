@@ -7,13 +7,13 @@
 - **Abstract**: `AbcBinary` (implemented by `BinPhpParser`)
 - **Exceptions**: `ExternalBinaryNotFoundException`, `ExternalBinaryInvalidException`, `ExternalBinaryArgumentMissException` — all extend `RuntimeException`
 - **Dependency roles**: Data holders: `BinaryResult`, `BinPhpParser.DumpType`. Orchestrator: `BinPhpParser`. Helper: `AbcBinary` (process lifecycle framework, inputs by subclass override).
-- **Modules and visibility**: One Gradle module (`externs-phpparser`, `explicitApi()`). `AbcBinary` and `BinaryResult` are public in the `binary` subpackage; `BinPhpParser`, the exceptions, and the top-level helpers are public in the root package `edu.jhu.cobra.externs.phpparser`. `readPhpVersion` and `withConfigurationSnapshot` are internal.
+- **Modules and visibility**: One Gradle module (`externs-phpparser`, `explicitApi()`). `AbcBinary` and `BinaryResult` are public in the `binary` subpackage; `BinPhpParser`, the exceptions, and the top-level helpers are public in the root package `edu.jhu.cobra.externs.phpparser`. `readPhpVersion` is internal.
 - **Named values** (all constants in code, each fixed by the bundled resources or the platform): `EXECUTION_TIMEOUT_MILLIS` and `TERMINATION_GRACE_MILLIS` (internal, `AbcBinary.kt`), `VERSION_PROBE_TIMEOUT_SECONDS` (internal) and `VERSION_COMPONENT_COUNT` (private, `PhpVersionValidation.kt`), `CRC_BUFFER_SIZE` (private, `ArchiveExtraction.kt`), `PARSER_VERSION` (public, `BinPhpParser.kt`, the bundled release used by graph-cache consumers), `MIN_PHP_VERSION`, `PHP_CLI_VERSION`, `OS_TOKEN_BY_NAME_FRAGMENT`, `ARCH_TOKEN_BY_NAME_FRAGMENT`, `BUNDLED_BINARY_CRC32`, `DUMP_SCRIPT_RESOURCE` (private, `BinPhpParser.kt`).
 
-`AbcBinary` defines the process execution framework: argument/option management via delegated properties, command array construction (abstract), process spawning bounded by a fixed liveness backstop, and output caching. `BinPhpParser` extends it with PHP-specific binary resolution (bundled extraction with CRC32 or system PATH search), platform normalization, and parser CLI flag assembly. `BinaryResult` is a passive data holder pairing exit code with output file reference. Stateless top-level helpers are split by responsibility: `ExecutableSearch.kt` (binary lookup), `PhpVersionValidation.kt` (interpreter version probing and comparison), `ArchiveExtraction.kt` (ZIP extraction, atomic publication, and CRC32 checksums), and `ScopedExecution.kt` (execution under temporary configuration).
+`AbcBinary` defines the process execution framework: command array construction (abstract, assembled by the subclass from its own typed configuration), process spawning bounded by a fixed liveness backstop, and output caching. `BinPhpParser` extends it with PHP-specific binary resolution (bundled extraction with CRC32 or system PATH search), platform normalization, its typed per-run configuration, explicit parser CLI flag assembly and scoped execution. `BinaryResult` is a passive data holder pairing exit code with output file reference. Stateless top-level helpers are split by responsibility: `ExecutableSearch.kt` (binary lookup), `PhpVersionValidation.kt` (interpreter version probing and comparison), and `ArchiveExtraction.kt` (ZIP extraction, atomic publication, and CRC32 checksums).
 
 Each concurrent run owns a distinct `BinPhpParser`: resolved binary files, working directory,
-argument/option maps and execution settings belong to that instance. A mutable parser instance is
+configuration and execution settings belong to that instance. A mutable parser instance is
 not shared between runs. Executable lookup retains no result or mutable registry. File-level maps
 describe immutable bundled resources and platforms; shared extracted resources are published by
 [atomic file publication](#archiveextractionkt). Distinct executions write distinct output files.
@@ -26,15 +26,9 @@ describe immutable bundled resources and platforms; shared extracted resources a
 
 **State/Fields**:
 - `workTmpDir: Path` (public, mutable) — Working directory for process execution, output files, and cache files. Defaults to `{java.io.tmpdir}/cobra/binaries/{className}`.
-- `allArguments: MutableMap<String, Any?>` (internal) — Registry of named arguments managed by `Argument` delegates. Mutated outside the class only through `withConfigurationSnapshot`.
-- `allOptions: MutableMap<String, Any>` (internal) — Registry of named options managed by `Option` delegates. Mutated outside the class only through `withConfigurationSnapshot`.
 - `executionTimeoutMillis: Long` (internal, open) — Liveness backstop before process destruction. Fixed at `EXECUTION_TIMEOUT_MILLIS` (1 minute); open only so test doubles can shorten waits. Never per-run configuration (`resource-bounds.md`).
 - `terminationGraceMillis: Long` (internal, open) — Grace period before forcible termination. Fixed at `TERMINATION_GRACE_MILLIS` (5 s); open only for test doubles.
 - `doCacheOutput: Boolean` (public, mutable) — Whether to reuse cached output for identical commands. Defaults to false.
-
-**Inner Classes** (protected):
-- `Argument<T>` — `ReadWriteProperty` delegate over `allArguments[name]`. Registers its default on declaration. Read throws `ExternalBinaryArgumentMissException` when the value is null. Assigning null removes the entry.
-- `Option<T>` — `ReadWriteProperty` delegate over `allOptions[name]`. Registers a non-null default on declaration. Read of an absent entry returns null when declared with a null default, and raises `IllegalStateException` when declared with a non-null default (the value was removed). Assigning null removes the entry, excluding it from the command line.
 
 **Methods**:
 
@@ -46,15 +40,9 @@ describe immutable bundled resources and platforms; shared extracted resources a
 
 `execute(): BinaryResult` (open)
 - **Behavior**: Creates the working directory if absent. Computes a cache key via SHA-1 over the NUL-joined command array. When caching is enabled and the cache file exists, returns it without spawning. Otherwise spawns the process with stdout+stderr redirected to a per-execution temp file (unique per call, so concurrent runs of one command never share an output file) and waits up to the execution backstop. On backstop expiry, destroys the process (graceful, then forcible after the termination grace), reaps it, and appends a timeout note to the output file. When caching is enabled and the exit code is 0, the output file is moved to the cache file. An interrupted wait reaps the process, re-sets the interrupt flag, and propagates `InterruptedException`.
-- **Input**: None (reads from internal state configured via delegates).
+- **Input**: None (reads from subclass state).
 - **Output**: `BinaryResult` — the process exit code on completion, -1 on backstop expiry.
 - **Errors**: `IOException` from process start when the binary is missing or not executable; `InterruptedException` from an interrupted wait; errors from `getCommandArray()`.
-
-`withConfigurationSnapshot(block: () -> R): R` (internal)
-- **Behavior**: Snapshots `allArguments` and `allOptions`, runs `block`, and restores both registries in a finally block — on normal completion and on exception.
-- **Input**: `block` — computation run under mutable configuration.
-- **Output**: The value returned by `block`.
-- **Errors**: Propagates any exception from `block`; state is restored regardless.
 
 ### BinPhpParser
 
@@ -64,13 +52,14 @@ describe immutable bundled resources and platforms; shared extracted resources a
 - `phpBinaryFile: File` (private) — Resolved PHP interpreter (caller-supplied, bundled, or system). Resolved eagerly on construction.
 - `parserBinaryFile: File` (private) — Resolved php-parser PHAR. Resolved eagerly on construction.
 - `dumpScriptFile: File` (private) — Published Dump Script (`php_parse.php` resource). Published eagerly on construction.
-- `target: File` — (Argument) Target PHP source file to parse. Required before `execute()`.
-- `dumpType: DumpType` — (Argument) AST output format. Defaults to `S_EXPR`.
-- `doPrettyPrint: Boolean` — (Option `--pretty-print`) Defaults to false.
-- `doResolveName: Boolean` — (Option `--resolve-names`) Applies `NodeVisitor\NameResolver`. Defaults to false.
-- `doWithColInfo: Boolean` — (Option `--with-column-info`) Defaults to false.
-- `doWithPositions: Boolean` — (Option `--with-positions`) Defaults to false.
-- `doWithRecovery: Boolean` — (Option `--with-recovery`) Defaults to false.
+- `config: ParseConfig` (private) — Immutable data class holding the per-run settings: `target: File?` (unset until assigned), `dumpType: DumpType` (defaults to `S_EXPR`) and five Boolean flags that default to false. Each public property below reads it and a setter replaces it with a modified copy.
+- `target: File` — Target PHP source file to parse. Required before `execute()`; reading it unset raises `ExternalBinaryArgumentMissException`.
+- `dumpType: DumpType` — AST output format.
+- `doPrettyPrint: Boolean` — CLI flag `--pretty-print`.
+- `doResolveName: Boolean` — CLI flag `--resolve-names`; applies `NodeVisitor\NameResolver`.
+- `doWithColInfo: Boolean` — CLI flag `--with-column-info`.
+- `doWithPositions: Boolean` — CLI flag `--with-positions`.
+- `doWithRecovery: Boolean` — CLI flag `--with-recovery`.
 - Platform normalization and bundled checksums are file-level constants: `OS_TOKEN_BY_NAME_FRAGMENT` (`mac`→`macos`, `win`→`windows`, `nix`/`nux`/`aix`→`linux`), `ARCH_TOKEN_BY_NAME_FRAGMENT` (`aarch64`/`arm64`→`aarch64`, `x86_64`/`amd64`→`x86_64`), `BUNDLED_BINARY_CRC32` (known-good CRC32 per bundled binary).
 
 **Inner Types**:
@@ -82,10 +71,17 @@ describe immutable bundled resources and platforms; shared extracted resources a
 **Methods**:
 
 `getCommandArray(): Array<String>` (override)
-- **Behavior**: Builds the command array in one pass: PHP binary, Dump Script, parser PHAR, every option whose value is `true`, dump type flag, target path. Every dump type runs through the Dump Script, so the command shape never depends on `dumpType`.
-- **Input**: Reads `phpBinaryFile`, `dumpScriptFile`, `parserBinaryFile`, `allOptions`, `dumpType`, `target`.
+- **Behavior**: Builds the command array in one pass: PHP binary, Dump Script, parser PHAR, each flag whose property is `true` in the order pretty-print, resolve-names, with-column-info, with-positions, with-recovery, dump type flag, target path. Every dump type runs through the Dump Script, so the command shape never depends on `dumpType`.
+- **Input**: Reads `phpBinaryFile`, `dumpScriptFile`, `parserBinaryFile` and one read of `config`.
 - **Output**: `Array<String>`.
 - **Errors**: `ExternalBinaryArgumentMissException` if `target` not set.
+
+`executeWith(tmpConfig: BinPhpParser.() -> Unit): BinaryResult`
+- **Responsibility**: Execute with temporary configuration, restoring the prior configuration afterward. The only scoped-execution API.
+- **Behavior**: Saves the current `config` value, applies `tmpConfig` to this parser, calls `execute()`, and in a finally block assigns the saved value back. Because the saved value is the whole `config`, the target, dump type and every flag are restored; `workTmpDir` and `doCacheOutput` live in `AbcBinary`, so assignments to them in `tmpConfig` persist.
+- **Input**: `tmpConfig` — configuration lambda with the parser as receiver.
+- **Output**: `BinaryResult` from the temporary execution.
+- **Errors**: Propagates any exception from `tmpConfig` or `execute()`, including `InterruptedException`. The configuration is restored on every path. One instance serves one run at a time (see Design Overview).
 
 **Construction**:
 - PHP binary resolution: caller-supplied (validated `>= MIN_PHP_VERSION`, 7.4, the version the bundled PHAR's Composer platform check requires; user decision PA5) > bundled ZIP extraction for the normalized platform (with CRC32 check) > system PATH search (first `php` on PATH that satisfies the minimum version). Hosts with no bundled variant, or a missing bundled resource, go straight to the PATH search. Throws `ExternalBinaryNotFoundException` when all fail; throws `ExternalBinaryInvalidException` when a caller-supplied interpreter is below the minimum version.
@@ -105,15 +101,6 @@ describe immutable bundled resources and platforms; shared extracted resources a
 ---
 
 ## Function Specifications
-
-### ScopedExecution.kt
-
-**`executeWith(tmpConfig: T.() -> Unit): BinaryResult`** (public extension on `T : AbcBinary`)
-- **Responsibility**: Execute a binary with temporary configuration, restoring original state afterward.
-- **Behavior**: Delegates to `AbcBinary.withConfigurationSnapshot`: applies `tmpConfig` and calls `execute()` under the snapshot; the snapshot restores both registries afterward.
-- **Input**: `tmpConfig` — configuration lambda applied to the receiver `AbcBinary` subtype.
-- **Output**: `BinaryResult` from the temporary execution.
-- **Errors**: Propagates any exception from `tmpConfig` or `execute()`. State is always restored — both normal returns and exceptions.
 
 ### ExecutableSearch.kt
 
@@ -184,4 +171,4 @@ describe immutable bundled resources and platforms; shared extracted resources a
 |-----------|-----------|-------------|
 | `ExternalBinaryNotFoundException(name, under)` | `RuntimeException` | Binary resolution fails — not found in bundled resources or system PATH — during `BinPhpParser` construction; or `extractFileFromZip` finds no matching entry. |
 | `ExternalBinaryInvalidException(name, reason, cause)` | `RuntimeException` | A binary exists but fails validation — caller-supplied interpreter below the minimum version, invalid version format, version component beyond `Int` range, unrunnable or hung version probe, unparsable version output, or an extracted interpreter that cannot be marked executable. |
-| `ExternalBinaryArgumentMissException(argName)` | `RuntimeException` | A required `Argument` delegate is read before being set. Raised when accessing `target` without assignment. |
+| `ExternalBinaryArgumentMissException(argName)` | `RuntimeException` | The required `target` is read before being set, including by `getCommandArray()`. |

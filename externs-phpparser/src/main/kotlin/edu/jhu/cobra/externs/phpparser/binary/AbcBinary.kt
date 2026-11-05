@@ -1,6 +1,5 @@
 package edu.jhu.cobra.externs.phpparser.binary
 
-import edu.jhu.cobra.externs.phpparser.ExternalBinaryArgumentMissException
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
@@ -11,8 +10,6 @@ import kotlin.io.path.div
 import kotlin.io.path.exists
 import kotlin.io.path.moveTo
 import kotlin.io.path.notExists
-import kotlin.properties.ReadWriteProperty
-import kotlin.reflect.KProperty
 
 // Liveness backstop for a wedged external process; a bound on hangs, not a tuning knob.
 internal const val EXECUTION_TIMEOUT_MILLIS = 60_000L
@@ -27,75 +24,17 @@ private fun cacheKeyOf(cmdArray: Array<String>): String {
     return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
 }
 
-/** Abstract executable that runs in a working directory. */
+/** Abstract executable that runs in a working directory; a subclass assembles its command line. */
 public abstract class AbcBinary {
     public var workTmpDir: Path =
         Path(System.getProperty("java.io.tmpdir")) / "cobra" / "binaries" / this::class.java.simpleName
-    internal val allArguments: MutableMap<String, Any?> = mutableMapOf()
-    internal val allOptions: MutableMap<String, Any> = mutableMapOf()
     public var doCacheOutput: Boolean = false
 
     // Liveness backstops. Open so test doubles can shorten waits; never per-run configuration.
     internal open val executionTimeoutMillis: Long = EXECUTION_TIMEOUT_MILLIS
     internal open val terminationGraceMillis: Long = TERMINATION_GRACE_MILLIS
 
-    // Delegated property backed by allArguments.
-    protected inner class Argument<T : Any?>(
-        private val name: String,
-        default: T? = null,
-    ) : ReadWriteProperty<Any, T> {
-        init {
-            allArguments[name] = default
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        override fun getValue(
-            thisRef: Any,
-            property: KProperty<*>,
-        ): T = (allArguments[name] ?: throw ExternalBinaryArgumentMissException(name)) as T
-
-        /** Assigning null removes the argument; a later read throws [ExternalBinaryArgumentMissException]. */
-        override fun setValue(
-            thisRef: Any,
-            property: KProperty<*>,
-            value: T,
-        ) {
-            if (value == null) allArguments.remove(name) else allArguments[name] = value
-        }
-    }
-
-    // Delegated property backed by allOptions.
-    protected inner class Option<T : Any?>(
-        private val name: String,
-        private val default: T? = null,
-    ) : ReadWriteProperty<Any, T> {
-        init {
-            default?.let { allOptions[name] = it }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        override fun getValue(
-            thisRef: Any,
-            property: KProperty<*>,
-        ): T {
-            val value = allOptions[name]
-            if (value != null) return value as T
-            // A null default marks a nullable option: absence reads back as null.
-            if (default == null) return null as T
-            error("Option $name has no value: it was removed after being declared with default $default")
-        }
-
-        /** Assigning null removes the option, excluding it from the command line. */
-        override fun setValue(
-            thisRef: Any,
-            property: KProperty<*>,
-            value: T,
-        ) {
-            if (value == null) allOptions.remove(name) else allOptions[name] = value
-        }
-    }
-
-    /** Builds the CLI command with all configured arguments and options. */
+    /** Builds the CLI command from the subclass's current configuration. */
     public abstract fun getCommandArray(): Array<String>
 
     /**
@@ -135,23 +74,6 @@ public abstract class AbcBinary {
             return BinaryResult(code = -1, output = tmpStdOut)
         }
         return BinaryResult(code = process.exitValue(), output = tmpStdOut)
-    }
-
-    /**
-     * Runs [block] and restores the argument and option registries afterward, on both
-     * normal completion and exception.
-     */
-    internal fun <R> withConfigurationSnapshot(block: () -> R): R {
-        val argumentsSnapshot = HashMap(allArguments)
-        val optionsSnapshot = HashMap(allOptions)
-        try {
-            return block()
-        } finally {
-            allArguments.clear()
-            allArguments.putAll(argumentsSnapshot)
-            allOptions.clear()
-            allOptions.putAll(optionsSnapshot)
-        }
     }
 
     // Waits up to the execution backstop; the spawned process must not outlive an interrupted wait.

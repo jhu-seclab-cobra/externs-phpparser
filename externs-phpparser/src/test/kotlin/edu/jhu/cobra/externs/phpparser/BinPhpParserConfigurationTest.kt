@@ -11,6 +11,8 @@ package edu.jhu.cobra.externs.phpparser
  * - `should skip false boolean options in command array` — false excluded
  * - `should set name resolution option in command array` — --resolve-names flag
  * - `should run the dump script against the parser binary` — interpreter, dump script, parser PHAR order
+ * - `command array should match the declared layout for every flag and dump type combination` — 96 targets
+ * - `should default every flag to false and read an unset target as a missing argument` — defaults and required target
  */
 
 import org.junit.jupiter.api.io.TempDir
@@ -18,6 +20,7 @@ import java.io.File
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -127,5 +130,42 @@ internal class BinPhpParserConfigurationTest {
         val cmd = parser.getCommandArray()
         assertTrue(File(cmd[1]).name.matches(Regex("php_parse-[0-9a-f]{8}\\.php")), "Dump script expected: ${cmd.toList()}")
         assertEquals("php-parser-5.7.0", File(cmd[2]).name)
+    }
+
+    @Test
+    fun `command array should match the declared layout for every flag and dump type combination`() {
+        val phpFile = createPhpFile(tempDir, "<?php echo 1;")
+        val flagNames =
+            listOf("--pretty-print", "--resolve-names", "--with-column-info", "--with-positions", "--with-recovery")
+        val prefix = BinPhpParser().apply { target = phpFile }.getCommandArray().take(3)
+        for (type in BinPhpParser.DumpType.entries) {
+            for (mask in 0 until (1 shl flagNames.size)) {
+                val parser =
+                    BinPhpParser().apply {
+                        target = phpFile
+                        dumpType = type
+                        doPrettyPrint = mask and 1 != 0
+                        doResolveName = mask and 2 != 0
+                        doWithColInfo = mask and 4 != 0
+                        doWithPositions = mask and 8 != 0
+                        doWithRecovery = mask and 16 != 0
+                    }
+                val enabled = flagNames.filterIndexed { bit, _ -> mask and (1 shl bit) != 0 }
+                val expected = prefix + enabled + type.opt + phpFile.absolutePath
+                assertEquals(expected, parser.getCommandArray().toList(), "type=$type mask=$mask")
+            }
+        }
+    }
+
+    @Test
+    fun `should default every flag to false and read an unset target as a missing argument`() {
+        val parser = BinPhpParser()
+        assertFalse(parser.doPrettyPrint)
+        assertFalse(parser.doResolveName)
+        assertFalse(parser.doWithColInfo)
+        assertFalse(parser.doWithPositions)
+        assertFalse(parser.doWithRecovery)
+        assertFailsWith<ExternalBinaryArgumentMissException> { parser.target }
+        assertFailsWith<ExternalBinaryArgumentMissException> { parser.getCommandArray() }
     }
 }
