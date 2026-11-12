@@ -19,7 +19,7 @@
 
 ## Libraries
 
-- `nikic/php-parser` v5.7.0 (BSD-3-Clause) — PHP AST parser. Bundled as PHAR (`php-parser-5.7.0.zip` classpath resource), invoked via `BinPhpParser`. The Dump Script `php_parse.php` derives from its `bin/php-parse` and keeps its copyright notice and license conditions in the file header.
+- `nikic/php-parser` v5.7.0 (BSD-3-Clause) — PHP AST parser. Bundled as PHAR (`php-parser-5.7.0.zip` classpath resource), invoked via `BinPhpParser`. The wrapper script `php_parse.php` derives from its `bin/php-parse` and keeps its copyright notice and license conditions in the file header.
 - `php-cli` 8.4 — interpreter bundled as `php-cli-8.4-{os}-{arch}.zip` classpath resources for macos/linux (x86_64, aarch64) and windows (x86_64).
 - `org.junit.jupiter:junit-jupiter-api:5.14.4`, `org.junit.jupiter:junit-jupiter-params:5.14.4` — test framework. Aliases `libs.junit.jupiter.api`, `libs.junit.jupiter.params`.
 - `io.mockk:mockk:1.14.11` — test doubles at process boundaries. Alias `libs.mockk`.
@@ -30,14 +30,13 @@
 - Quality gate: `./gradlew detekt ktlintCheck build -q`; auto-format with `./gradlew ktlintFormat -q`.
 - Process-reaping fixtures capture the real started `Process` in a test-only owner scope before readiness I/O. The scope covers readiness and execution and reaps a live process on every exit, including readiness errors; duration getters only return immutable values. Scoped constructor instrumentation matches the fixture command, is always removed, and runs in isolated tests. Timeout and readiness-failure tests use slow `sh` wrappers on PATH and retain `kill -0` liveness assertions.
 - Performance benchmarks are tagged `performance` and excluded from `test`; run `./gradlew performanceTest`.
-- Bundled binary checksums (`BUNDLED_BINARY_CRC32`) must be updated whenever a resource zip is replaced. The Dump Script needs no stored checksum: it is computed from the resource.
+- Bundled binary checksums (`BUNDLED_BINARY_CRC32`) must be updated whenever a resource zip is replaced. The wrapper script needs no stored checksum: it is computed from the resource.
 - `edu.jhu.cobra.externs.phpparser.PARSER_VERSION` is the public immutable release constant used by bundled PHAR lookup and downstream graph cache keys; it names the `php-parser-<version>.zip` resource.
 - AST node reference (all nodeTypes, subnodes, constants, JSON format): [research/index.md](research/index.md).
 - JSON output: top-level is `Stmt[]` array. Each node has `"nodeType"` string + `"attributes"` object + subnode keys.
-- `attributes` always contains: `startLine`, `endLine`, `startTokenPos`, `endTokenPos`, `startFilePos`, `endFilePos`, `comments`.
+- Supported `attributes` keys include: `startLine`, `endLine`, `startTokenPos`, `endTokenPos`, `startFilePos`, `endFilePos`, `comments`.
 - `flags` is a bitmask: combine with `|`, test with `&`. Values: PUBLIC=1, PROTECTED=2, PRIVATE=4, STATIC=8, ABSTRACT=16, FINAL=32, READONLY=64.
 - Nullable subnodes serialize as JSON `null`. Array subnodes serialize as JSON arrays (may contain `null` elements, e.g. `Expr_Array.items`).
-- v5 renamed several nodes (e.g. `LNumber`→`Int_`, `ArrayItem` no longer under `Expr_`). Rename table: [php_parser_ast_renames.md](research/php_parser_ast_renames.md).
 - `Name.name` is a single string (`"Foo\Bar"`), not a `parts` array. Use `getParts()` for array form.
 
 ## Design-specific
@@ -46,8 +45,8 @@
 
 - Create a distinct instance for each concurrent worker; binary ownership and shared resource publication: [design](design.md#design-overview).
 - `DumpType.JSON` (`--json-dump`) yields the JSON AST consumed downstream.
-- Parser output file (`BinaryResult.output`) contains raw JSON prepended with `====> File ...` header lines, which the Dump Script writes to stderr as `php-parse` does. Downstream parser must skip non-JSON prefix.
-- The Dump Script runs the operations in command-line order, as `php-parse` does: `--resolve-names` before the dump flag resolves names first.
+- Parser output file (`BinaryResult.output`) contains raw JSON prepended with `====> File ...` header lines, which the wrapper script writes to stderr as `php-parse` does. Downstream parser must skip non-JSON prefix.
+- The wrapper script runs the operations in command-line order, as `php-parse` does: `--resolve-names` before the dump flag resolves names first.
 - Error recovery mode (`--with-recovery`): parser inserts `Expr_Error` placeholder nodes instead of throwing.
 - Output cache keys on the command line, not file content; a changed file under the same path is a cache hit.
 
@@ -56,9 +55,9 @@
 - `--resolve-names` applies `NodeVisitor\NameResolver`.
 - After resolution two Name nodeTypes appear: `Name_FullyQualified` (resolved) and `Name` (unresolved: `self`, `parent`, `static`, unqualified functions/constants). `Name_Relative` is fully resolved.
 - `Stmt_Namespace` and `Stmt_Use` remain in the AST.
-- `self`/`parent` → downstream Phase 0 replaces with current/parent class FQN (as Zend's `CG(active_class_entry)`).
+- The caller resolves `self` and `parent` using the current class declaration.
 - `static` → cannot resolve statically (runtime late binding).
-- Unqualified functions/constants → downstream Phase 1 checks the `namespacedName` attribute first, then global fallback.
+- The caller resolves unqualified functions and constants using `namespacedName` and its own declaration lookup.
 - Full resolution table and AST format details: [php-parser-guide.md](llms/php-parser-guide.md).
 
 ### ConstExprEvaluator

@@ -1,36 +1,27 @@
 # externs-phpparser
 
-> Kotlin/JVM wrapper for PHP-Parser — parses PHP source files into AST text via managed external PHP binary.
-
-`BinPhpParser` is the primary entry point; it extends `AbcBinary`, which handles process execution, timeout, and output caching. Call `execute()` to parse a PHP file. The result is a `BinaryResult` with an exit code and output file.
+> Kotlin/JVM adapter that parses PHP source files into AST text.
 
 ## Instructions for Agents
 
-- Create `BinPhpParser()` and set `target` before calling `execute()`.
-- Use `executeWith { }` for one-off config overrides — state restores automatically.
-- Check `BinaryResult.code`: `0` = success, `-1` = timeout.
-- Read AST output from `BinaryResult.output` (a `File`).
-- Handle unresolved `Name` nodes (`self`, `parent`, unqualified functions) downstream after name resolution.
-- Set `dumpType` to `DumpType.JSON` for machine-readable output, `S_EXPR` for structural, `VAR` for PHP debug.
-- Set `doResolveName = true` for static analysis — resolves names to `Name_FullyQualified`.
-- Set `doCacheOutput = true` to skip re-execution for identical commands.
-- Catch `ExternalBinaryNotFoundException` at construction — thrown when no PHP binary is found.
-- Catch `ExternalBinaryArgumentMissException` — thrown when `target` is not set before `execute()`.
-- Never assume a specific PHP binary location. `BinPhpParser` resolves bundled or system PHP automatically.
-- Never rely on `doCacheOutput` after editing a file in place — the cache keys on the command line, not file content.
+- Construct `BinPhpParser` and assign an absolute `target` before `execute()`.
+- Configure `dumpType` and the parser flags for the requested output.
+- Use `executeWith` for scoped target, dump type and flag overrides.
+- Check the exit code and the expected output payload before decoding.
+- Never reuse a cached command after changing the target file in place.
 
 ## API Reference
 
-- [Parser API](llms/parser.md): `BinPhpParser`, `AbcBinary`, `BinaryResult`, top-level functions, exceptions.
-- [PHP-Parser Guide](llms/php-parser-guide.md): Parsing pipeline, JSON format, name resolution, AST node types, error handling.
+- [Parser API](llms/parser.md): Constructors, execution, configuration, helpers and errors.
+- [Output usage](llms/php-parser-guide.md): Output framing and name-resolution requirements.
+- [Module index](llms/index.md): API page navigation.
+# Parser usage — caller documentation
 
-
----
-
-# Referenced Documents
-
-## Source: llms/parser.md
-
+| File | Content |
+|------|---------|
+| [parser.md](parser.md) | Typed parser API and configuration |
+| [php-parser-guide.md](php-parser-guide.md) | Output framing and unresolved names |
+| [full.txt](full.txt) | Concatenated entry and module pages |
 # Parser API
 
 > External PHP binary management and AST parsing via nikic/PHP-Parser v5.7.0.
@@ -38,13 +29,15 @@
 ## Quick Start
 
 ```kotlin
+import edu.jhu.cobra.externs.phpparser.BinPhpParser
+import java.io.File
 val parser = BinPhpParser().apply {
     dumpType = BinPhpParser.DumpType.JSON
     doResolveName = true
 }
-parser.target = File("path/to/file.php")
+parser.target = File("example.php").absoluteFile
 val result = parser.execute()
-if (result.code == 0) println(result.output.readText())
+println(result.code)
 ```
 
 ## API
@@ -67,6 +60,8 @@ if (result.code == 0) println(result.output.readText())
 
 **`doWithRecovery: Boolean`** — Enable `--with-recovery`. Default `false`.
 
+**`executeWith(tmpConfig: BinPhpParser.() -> Unit): BinaryResult`** — Execute with temporary config. Restores `target`, `dumpType` and the five flags afterward; `workTmpDir` and `doCacheOutput` assigned inside persist.
+
 ### AbcBinary (superclass)
 
 **`execute(): BinaryResult`** — Run the external binary. Returns cached result if `doCacheOutput` is `true` and cache hit. Returns code `-1` after the fixed 1-minute timeout; the timeout is not configurable.
@@ -84,32 +79,30 @@ if (result.code == 0) println(result.output.readText())
 
 ### Top-Level Functions
 
-**`executeWith(tmpConfig: T.() -> Unit): BinaryResult`** — Execute with temporary config. Backs up and restores all arguments/options.
-
 **`searchBin(name: String): File?`** — Search system PATH for executable. Returns first match or `null`.
 
 **`searchBin(under: Path, vararg possibleNames: String): File?`** — Look up an executable as a direct child of a directory.
 
 **`isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean = true): Boolean`** — Check PHP version. Raises `ExternalBinaryInvalidException` on invalid format or unrunnable binary.
 
-**`extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path)`** — Extract one ZIP entry to `toOutPath` atomically. Raises `ExternalBinaryNotFoundException` when no entry matches.
+**`extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path): Unit`** — Extract one ZIP entry to `toOutPath` atomically. Raises `ExternalBinaryNotFoundException` when no entry matches.
 
 **`Path.crc32ChecksumString: String?`**, **`File.crc32ChecksumString: String?`** — CRC32 of a regular file as 8 lowercase hex chars; `null` when absent.
 
 ### Exceptions
 
-**`ExternalBinaryNotFoundException(name, under)`** — Binary not found. Raised during construction.
+**`ExternalBinaryNotFoundException(name: String, under: String? = null)`** — Binary not found. Raised during construction.
 
-**`ExternalBinaryInvalidException(name, reason, cause)`** — Binary exists but fails validation.
+**`ExternalBinaryInvalidException(name: String, reason: String? = null, cause: Throwable? = null)`** — Binary exists but fails validation.
 
-**`ExternalBinaryArgumentMissException(argName)`** — Required argument (`target`) not set.
+**`ExternalBinaryArgumentMissException(argName: String)`** — Required argument (`target`) not set.
 
 ## Configuration
 
 | Option | Property | CLI Flag | Effect |
 |--------|----------|----------|--------|
 | Dump S-expr | `DumpType.S_EXPR` | `--dump` | Human-readable indented dump (default) |
-| Dump JSON | `DumpType.JSON` | `--json-dump` | Compact JSON array of Stmt nodes with `nodeType` + `attributes` + subnodes, no nesting depth limit; bytes that are not valid UTF-8 become U+FFFD, offsets index the unchanged file |
+| JSON dump | `DumpType.JSON` | `--json-dump` | Compact JSON array of Stmt nodes with `nodeType` + `attributes` + subnodes, no nesting depth limit; bytes that are not valid UTF-8 become U+FFFD, offsets index the unchanged file |
 | Dump var | `DumpType.VAR` | `--var-dump` | PHP `var_dump()` output for exact structure inspection |
 | Pretty print | `doPrettyPrint` | `--pretty-print` | Regenerate PHP source from AST (round-trip test) |
 | Name resolution | `doResolveName` | `--resolve-names` | Apply `NameResolver` visitor — resolves use/alias/namespace names to FQN |
@@ -117,190 +110,53 @@ if (result.code == 0) println(result.output.readText())
 | Positions | `doWithPositions` | `--with-positions` | Add `startFilePos`/`endFilePos` to node dumps |
 | Recovery | `doWithRecovery` | `--with-recovery` | Parse broken PHP — inserts `Expr_Error` placeholder nodes |
 
-- Bundled binaries are extracted under `workTmpDir`; set it before construction-time extraction is needed again only by creating a new parser.
+- Construction extracts resources under the initial `workTmpDir`; assigning the property afterward changes output and cache placement, not resolved binary paths.
 - System property `java.io.tmpdir` sets the default `workTmpDir` root.
 - Environment variable `PATH` is searched for `php` when no bundled build matches the host.
 
 ## Gotchas
 
 - Construction resolves binaries eagerly. Fails fast if no PHP available.
-- `executeWith { }` restores state on return and on exception.
+- `executeWith { }` restores target, dump type and five flags on every exit; changes to `workTmpDir` and `doCacheOutput` persist.
 - Output caching keys on the command, not file content. Changing file content without changing its path does not invalidate the cache.
-- Only exit code `0` results are cached; failures re-execute.
+- Only code `0` results are cached; recovery can exit `0` with diagnostics and no AST, so validate the expected payload before decoding.
 - Bundled PHP: macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64.
 - `--resolve-names` does not resolve `self`/`parent`/`static` or unqualified function/constant names. Full resolution behavior: [php-parser-guide.md](php-parser-guide.md).
+# Parser output usage
 
----
-
-## Source: llms/php-parser-guide.md
-
-# PHP-Parser Integration Guide
-
-> How to parse PHP source code into AST via BinPhpParser, and what the output contains.
+> Caller requirements for reading parser output and unresolved names.
 
 ## Quick Start
 
 ```kotlin
+import edu.jhu.cobra.externs.phpparser.BinPhpParser
+import java.io.File
 val parser = BinPhpParser().apply {
+    target = File("example.php").absoluteFile
     dumpType = BinPhpParser.DumpType.JSON
-    doResolveName = true
-    doWithRecovery = true
 }
-parser.target = File("src/Example.php")
 val result = parser.execute()
-val json = result.output.readText()
+println(result.code)
+println(result.output.readText())
 ```
 
-- Static analysis configuration: `JSON` dump, name resolution on, recovery on.
+## API
 
-## Parsing Pipeline
+- `BinaryResult.code: Int` is the process exit code; `-1` indicates timeout.
+- `BinaryResult.output: File` contains merged stdout and stderr, including diagnostics and operation headers before the payload.
+- The [AST reference](../research/index.md) specifies node and subnode representations.
 
-```
-PHP source file
-  → BinPhpParser (Kotlin wrapper)
-    → php-cli binary (bundled or system)
-      → php_parse.php dump script (bundled), loading php-parser.phar (nikic/PHP-Parser v5.7.0)
-        → Lexer → Parser → AST
-        → NameResolver visitor (if --resolve-names)
-        → JSON writer (if --json-dump): compact, explicit stack, no depth limit; invalid UTF-8 → U+FFFD; encoding failure → non-zero exit
-  → BinaryResult(code, output: File)
-    → JSON text: array of Stmt nodes
-```
+## Configuration
 
-## JSON Output Format
-
-- Top-level: JSON array of statement nodes.
-- Each node: `nodeType`, `attributes`, subnodes.
-
-```json
-{
-    "nodeType": "Stmt_Class",
-    "attributes": {
-        "startLine": 3, "endLine": 10,
-        "startTokenPos": 5, "endTokenPos": 40,
-        "startFilePos": 20, "endFilePos": 150
-    },
-    "name": { "nodeType": "Identifier", "name": "User" },
-    "extends": { "nodeType": "Name_FullyQualified", "name": "App\\Models\\Base" },
-    "stmts": [ ... ],
-    "namespacedName": { "nodeType": "Name", "name": "App\\Models\\User" }
-}
-```
-
-- Output file starts with header lines (`====> File ...`, `==> Resolved names.`). Skip lines before the `[` when parsing JSON.
-
-## Name Resolution Behavior
-
-- `doResolveName = true` applies `NodeVisitor\NameResolver`.
-
-### Resolved to `Name_FullyQualified`
-
-| PHP Code | AST Name | Resolved To |
-|----------|---------|-------------|
-| `use App\Models\User; new User()` | `Name_FullyQualified` | `App\Models\User` |
-| `use App\Foo as F; new F()` | `Name_FullyQualified` | `App\Foo` |
-| `extends Foo` in `namespace App` | `Name_FullyQualified` | `App\Foo` |
-| `new namespace\Sub()` in `namespace App` | `Name_FullyQualified` | `App\Sub` |
-| `use App\{A, B}; new A()` | `Name_FullyQualified` | `App\A` |
-| `use function App\helper; helper()` | `Name_FullyQualified` | `App\helper` |
-
-### Left as `Name` (unresolved)
-
-| PHP Code | AST Name | Why | Who Resolves |
-|----------|---------|-----|-------------|
-| `self::method()` | `Name("self")` | Class-context keyword | Phase 0: replace with current class FQN |
-| `parent::method()` | `Name("parent")` | Needs extends resolution | Phase 0: replace with parent class FQN |
-| `static::method()` | `Name("static")` | Runtime late binding | Cannot resolve statically |
-| `strlen()` in namespace | `Name("strlen")` | Runtime fallback | Phase 1: check namespace, fallback global |
-| `PHP_INT_MAX` in namespace | `Name("PHP_INT_MAX")` | Runtime fallback | Phase 1: check namespace, fallback global |
-
-- Unqualified functions/constants carry a `namespacedName` attribute with the namespace-prefixed form (e.g., `App\strlen`).
-
-### Structural Nodes
-
-- `Stmt_Namespace` and `Stmt_Use` remain in the AST after resolution.
-- They are informational — all resolved references use `Name_FullyQualified` directly.
-
-## AST Node Types (Key Categories)
-
-### Statements
-
-| nodeType | PHP | Key Subnodes |
-|----------|-----|-------------|
-| `Stmt_Namespace` | `namespace App;` | `name`, `stmts` |
-| `Stmt_Use` | `use App\Foo;` | `uses: UseItem[]` |
-| `Stmt_Class` | `class Foo {}` | `name`, `extends`, `implements`, `stmts`, `namespacedName` |
-| `Stmt_Interface` | `interface IFoo {}` | `name`, `extends`, `stmts` |
-| `Stmt_Trait` | `trait MyTrait {}` | `name`, `stmts` |
-| `Stmt_Enum` | `enum Color {}` | `name`, `stmts`, `scalarType` |
-| `Stmt_Function` | `function foo() {}` | `name`, `params`, `stmts`, `returnType` |
-| `Stmt_ClassMethod` | method in class | `name`, `params`, `stmts`, `flags`, `returnType` |
-| `Stmt_Property` | `public $x;` | `props: PropertyItem[]`, `flags`, `type` |
-| `Stmt_ClassConst` | `const X = 1;` | `consts`, `flags` |
-| `Stmt_If` | `if () {}` | `cond`, `stmts`, `elseifs`, `else` |
-| `Stmt_Return` | `return $x;` | `expr` |
-
-### Expressions
-
-| nodeType | PHP | Key Subnodes |
-|----------|-----|-------------|
-| `Expr_Variable` | `$x` | `name` |
-| `Expr_Assign` | `$x = 1` | `var`, `expr` |
-| `Expr_FuncCall` | `foo()` | `name`, `args` |
-| `Expr_MethodCall` | `$obj->m()` | `var`, `name`, `args` |
-| `Expr_StaticCall` | `Cls::m()` | `class`, `name`, `args` |
-| `Expr_New` | `new Foo()` | `class`, `args` |
-| `Expr_PropertyFetch` | `$obj->p` | `var`, `name` |
-| `Expr_ArrayDimFetch` | `$a["k"]` | `var`, `dim` |
-| `Expr_Array` | `[1, 2]` | `items: ArrayItem[]` |
-
-### Names
-
-| nodeType | Meaning |
-|----------|---------|
-| `Name` | Unresolved name (self, parent, strlen) |
-| `Name_FullyQualified` | Resolved FQN (\App\Models\User) |
-| `Identifier` | Simple identifier (method name, property name) |
-
-### Scalars (v5 names)
-
-| nodeType | PHP | v4 Name |
-|----------|-----|---------|
-| `Scalar_Int` | `42` | `Scalar_LNumber` |
-| `Scalar_Float` | `3.14` | `Scalar_DNumber` |
-| `Scalar_String` | `"hello"` | same |
-| `Scalar_InterpolatedString` | `"Hello $name"` | `Scalar_Encapsed` |
-
-### Modifier Flags
-
-- Stored in `flags` field as bitmask.
-
-| Flag | Value | PHP |
-|------|-------|-----|
-| PUBLIC | 1 | `public` |
-| PROTECTED | 2 | `protected` |
-| PRIVATE | 4 | `private` |
-| STATIC | 8 | `static` |
-| ABSTRACT | 16 | `abstract` |
-| FINAL | 32 | `final` |
-| READONLY | 64 | `readonly` |
-
-## Error Handling
-
-| Scenario | Behavior |
-|----------|----------|
-| Valid PHP | `BinaryResult(code=0, output=jsonFile)` |
-| Syntax error, no recovery | `BinaryResult(code=1, output=errorFile)` |
-| Syntax error, with recovery | `BinaryResult(code=0, output=partialAst)` — `Expr_Error` nodes inserted |
-| Timeout | `BinaryResult(code=-1, output=timeoutFile)` |
-| No PHP binary | `ExternalBinaryNotFoundException` at construction |
+- Set `dumpType = BinPhpParser.DumpType.JSON` to request the [JSON dump](../glossary/glossary-dump.md#json-dump).
+- Set `doResolveName = true` to apply PHP-Parser name resolution.
+- Set `doWithRecovery = true` to collect parse diagnostics and request a partial AST.
+- Leave `doPrettyPrint` false when expecting only an AST payload; enabling it emits PHP text before the requested dump.
 
 ## Gotchas
 
-- Skip the `====> File ...` and `==> Resolved names.` header lines before the JSON `[`.
-- `static::` names are never resolved; `self`/`parent` and unqualified function/constant names need downstream resolution.
-- `Name.name` is one string (`"App\\Models\\User"`), not a `parts` array.
-- v5 renamed scalar nodes (`Scalar_LNumber` → `Scalar_Int`); match on v5 names only.
-
----
-
+- Skip diagnostic and operation-header lines before decoding the expected payload; output is not a standalone JSON file.
+- Recovery can exit `0` with no AST when the parser returns no statements; require a JSON payload before decoding.
+- Name resolution leaves `self`, `parent`, `static`, and unqualified function/constant names for caller lookup. Unqualified functions/constants carry a namespace-prefixed `namespacedName` attribute.
+- `Name.name` is one backslash-separated string. `Name_FullyQualified` represents resolved names; `Stmt_Namespace` and `Stmt_Use` remain in the output.
+- Name resolution resolves namespace-relative names; it does not decide late static binding.

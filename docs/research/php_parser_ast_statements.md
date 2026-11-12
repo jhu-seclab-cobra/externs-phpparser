@@ -13,7 +13,7 @@ Statement (`Stmt_*`) nodes and the non-expression structural nodes they contain,
 | `Stmt_Namespace` | `name: Name?`, `stmts: Stmt[]` |
 | `Stmt_Use` | `uses: UseItem[]`, `type: int` |
 | `Stmt_GroupUse` | `prefix: Name`, `uses: UseItem[]`, `type: int` |
-| `Stmt_Class` | `flags: int`, `name: Identifier`, `extends: Name?`, `implements: Name[]`, `stmts: Stmt[]`, `attrGroups: AttributeGroup[]`, `namespacedName: Name?` |
+| `Stmt_Class` | `flags: int`, `name: Identifier?`, `extends: Name?`, `implements: Name[]`, `stmts: Stmt[]`, `attrGroups: AttributeGroup[]`, `namespacedName: Name?` |
 | `Stmt_Interface` | `name: Identifier`, `extends: Name[]`, `stmts: Stmt[]`, `attrGroups: AttributeGroup[]`, `namespacedName: Name?` |
 | `Stmt_Trait` | `name: Identifier`, `stmts: Stmt[]`, `attrGroups: AttributeGroup[]`, `namespacedName: Name?` |
 | `Stmt_Enum` | `name: Identifier`, `scalarType: Identifier?`, `implements: Name[]`, `stmts: Stmt[]`, `attrGroups: AttributeGroup[]`, `namespacedName: Name?` |
@@ -54,7 +54,6 @@ Statement (`Stmt_*`) nodes and the non-expression structural nodes they contain,
 | `Stmt_TryCatch` | `stmts: Stmt[]`, `catches: Stmt_Catch[]`, `finally: Stmt_Finally?` |
 | `Stmt_Catch` | `types: Name[]`, `var: Expr_Variable?`, `stmts: Stmt[]` |
 | `Stmt_Finally` | `stmts: Stmt[]` |
-| `Stmt_Throw` | `expr: Expr` |
 
 ### Other Statements
 
@@ -87,7 +86,7 @@ Statement (`Stmt_*`) nodes and the non-expression structural nodes they contain,
 | `StaticVar` | `var: Expr_Variable`, `default: Expr?` |
 | `DeclareItem` | `key: Identifier`, `value: Expr` |
 | `PropertyItem` | `name: VarLikeIdentifier`, `default: Expr?` |
-| `PropertyHook` | `name: Identifier`, `body: Expr|Stmt[]?`, `params: Param[]`, `byRef: bool`, `attrGroups: AttributeGroup[]`, `flags: int` |
+| `PropertyHook` | `name: Identifier`, `body: Expr\|Stmt[]?`, `params: Param[]`, `byRef: bool`, `attrGroups: AttributeGroup[]`, `flags: int` |
 | `UseItem` | `type: int`, `name: Name`, `alias: Identifier?` |
 | `InterpolatedStringPart` | `value: string` (attribute: `rawValue`) |
 | `VariadicPlaceholder` | *(none)* |
@@ -96,9 +95,9 @@ Statement (`Stmt_*`) nodes and the non-expression structural nodes they contain,
 
 | nodeType | Subnodes |
 |----------|----------|
-| `NullableType` | `type: Identifier|Name` |
-| `UnionType` | `types: (Identifier|Name|IntersectionType)[]` |
-| `IntersectionType` | `types: (Identifier|Name)[]` |
+| `NullableType` | `type: Identifier\|Name` |
+| `UnionType` | `types: (Identifier\|Name\|IntersectionType)[]` |
+| `IntersectionType` | `types: (Identifier\|Name)[]` |
 
 ### Attribute Nodes
 

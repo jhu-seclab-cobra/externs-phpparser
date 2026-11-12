@@ -5,13 +5,15 @@
 ## Quick Start
 
 ```kotlin
+import edu.jhu.cobra.externs.phpparser.BinPhpParser
+import java.io.File
 val parser = BinPhpParser().apply {
     dumpType = BinPhpParser.DumpType.JSON
     doResolveName = true
 }
-parser.target = File("path/to/file.php")
+parser.target = File("example.php").absoluteFile
 val result = parser.execute()
-if (result.code == 0) println(result.output.readText())
+println(result.code)
 ```
 
 ## API
@@ -59,24 +61,24 @@ if (result.code == 0) println(result.output.readText())
 
 **`isPhpVersionValid(binary: File, minRequired: String, includeEqual: Boolean = true): Boolean`** — Check PHP version. Raises `ExternalBinaryInvalidException` on invalid format or unrunnable binary.
 
-**`extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path)`** — Extract one ZIP entry to `toOutPath` atomically. Raises `ExternalBinaryNotFoundException` when no entry matches.
+**`extractFileFromZip(zipInputStream: InputStream, toOutPath: Path, vararg fromZipPath: Path): Unit`** — Extract one ZIP entry to `toOutPath` atomically. Raises `ExternalBinaryNotFoundException` when no entry matches.
 
 **`Path.crc32ChecksumString: String?`**, **`File.crc32ChecksumString: String?`** — CRC32 of a regular file as 8 lowercase hex chars; `null` when absent.
 
 ### Exceptions
 
-**`ExternalBinaryNotFoundException(name, under)`** — Binary not found. Raised during construction.
+**`ExternalBinaryNotFoundException(name: String, under: String? = null)`** — Binary not found. Raised during construction.
 
-**`ExternalBinaryInvalidException(name, reason, cause)`** — Binary exists but fails validation.
+**`ExternalBinaryInvalidException(name: String, reason: String? = null, cause: Throwable? = null)`** — Binary exists but fails validation.
 
-**`ExternalBinaryArgumentMissException(argName)`** — Required argument (`target`) not set.
+**`ExternalBinaryArgumentMissException(argName: String)`** — Required argument (`target`) not set.
 
 ## Configuration
 
 | Option | Property | CLI Flag | Effect |
 |--------|----------|----------|--------|
 | Dump S-expr | `DumpType.S_EXPR` | `--dump` | Human-readable indented dump (default) |
-| Dump JSON | `DumpType.JSON` | `--json-dump` | Compact JSON array of Stmt nodes with `nodeType` + `attributes` + subnodes, no nesting depth limit; bytes that are not valid UTF-8 become U+FFFD, offsets index the unchanged file |
+| JSON dump | `DumpType.JSON` | `--json-dump` | Compact JSON array of Stmt nodes with `nodeType` + `attributes` + subnodes, no nesting depth limit; bytes that are not valid UTF-8 become U+FFFD, offsets index the unchanged file |
 | Dump var | `DumpType.VAR` | `--var-dump` | PHP `var_dump()` output for exact structure inspection |
 | Pretty print | `doPrettyPrint` | `--pretty-print` | Regenerate PHP source from AST (round-trip test) |
 | Name resolution | `doResolveName` | `--resolve-names` | Apply `NameResolver` visitor — resolves use/alias/namespace names to FQN |
@@ -84,15 +86,15 @@ if (result.code == 0) println(result.output.readText())
 | Positions | `doWithPositions` | `--with-positions` | Add `startFilePos`/`endFilePos` to node dumps |
 | Recovery | `doWithRecovery` | `--with-recovery` | Parse broken PHP — inserts `Expr_Error` placeholder nodes |
 
-- Bundled binaries are extracted under `workTmpDir`; set it before construction-time extraction is needed again only by creating a new parser.
+- Construction extracts resources under the initial `workTmpDir`; assigning the property afterward changes output and cache placement, not resolved binary paths.
 - System property `java.io.tmpdir` sets the default `workTmpDir` root.
 - Environment variable `PATH` is searched for `php` when no bundled build matches the host.
 
 ## Gotchas
 
 - Construction resolves binaries eagerly. Fails fast if no PHP available.
-- `executeWith { }` restores state on return and on exception.
+- `executeWith { }` restores target, dump type and five flags on every exit; changes to `workTmpDir` and `doCacheOutput` persist.
 - Output caching keys on the command, not file content. Changing file content without changing its path does not invalidate the cache.
-- Only exit code `0` results are cached; failures re-execute.
+- Only code `0` results are cached; recovery can exit `0` with diagnostics and no AST, so validate the expected payload before decoding.
 - Bundled PHP: macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64.
 - `--resolve-names` does not resolve `self`/`parent`/`static` or unqualified function/constant names. Full resolution behavior: [php-parser-guide.md](php-parser-guide.md).

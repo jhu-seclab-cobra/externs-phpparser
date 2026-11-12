@@ -1,0 +1,4 @@
+# Retired names
+
+| Retired | Successor |
+|---------|-----------|

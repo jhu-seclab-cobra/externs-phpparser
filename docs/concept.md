@@ -1,114 +1,49 @@
-# externs-phpparser: Concepts & Terminology
+# externs-phpparser — PHP parsing adapter
 
-## 1. Context
+## Context
 
-**Problem Statement**
-Static analysis of PHP source code requires parsing files into Abstract Syntax Trees (ASTs). PHP parsers are written in PHP and distributed as PHAR archives, so a JVM-based analysis pipeline cannot invoke them directly. An adapter layer is needed to manage PHP binary discovery, parser binary extraction, process execution, and result capture — shielding downstream consumers from platform-specific details.
+JVM callers need the AST of a PHP source file without executing the source. This adapter invokes the PHP-Parser PHAR through a PHP interpreter and returns its captured output.
 
-**System Role**
-externs-phpparser is the PHP parsing adapter in the Cobra analysis pipeline, translating PHP source files into structured AST output consumable by JVM-based analysis modules.
+**System Role:** The adapter connects a JVM caller to the external parser process.
 
 **Data Flow**
-- **Inputs:** PHP source file paths (from upstream analysis orchestrator)
-- **Outputs:** AST text (S-expression, JSON, or var-dump format) as file references
-- **Connections:** [Analysis Orchestrator] → [externs-phpparser] → [AST Consumer]
+
+- **Inputs:** A PHP source file path and output options.
+- **Outputs:** An exit code and a file containing parser output or diagnostics.
+- **Connections:** Caller → adapter → PHP-Parser → caller.
 
 **Scope Boundaries**
-- **Owned:** PHP binary resolution (bundled or system), parser binary extraction, the dump script, process lifecycle management, output caching, platform normalization (OS/arch), integrity verification (CRC32)
-- **Not Owned:** AST interpretation or transformation, PHP installation, upstream orchestration logic, downstream AST consumption
 
-## 2. Concepts
+- **Owned:** Interpreter discovery, resource extraction and validation, process execution, output caching and AST serialization.
+- **Not Owned:** PHP installation, AST interpretation, declaration lookup or execution of the parsed program.
 
-**Conceptual Diagram**
-```
-+------------------+       +------------------+       +------------------+
-| Analysis         |       | externs-phpparser|       | AST Consumer     |
-| Orchestrator     | ----> |                  | ----> | (downstream)     |
-|                  |       | Binary Resolver  |       |                  |
-+------------------+       | Process Executor |       +------------------+
-                           | Output Cache     |
-                           +------------------+
-                                   |
-                           +-------+-------+
-                           |               |
-                    +-----------+   +-----------+
-                    | Bundled   |   | System    |
-                    | PHP + PHAR|   | PHP (PATH)|
-                    +-----------+   +-----------+
+## Concepts
+
+```text
+Caller → parsing adapter → PHP interpreter + PHP-Parser
+Caller ← exit code and output file ← parser process
 ```
 
-**Core Concepts**
+- **Name:** [JSON dump](glossary/glossary-dump.md#json-dump).
+- **Role:** The JSON dump lets a caller decode the AST without running the parsed source.
+- **Scope:** The AST of one file; source offsets refer to its unchanged bytes.
+- **Relationships:** PHP-Parser produces the AST; the adapter serializes it; the caller interprets it.
 
-- **Name:** Binary Resolution
-  - **Definition:** Locating a valid PHP interpreter and php-parser PHAR before any parse runs, so that execution never starts against a missing or unusable binary.
-  - **Scope:** Includes the priority chain — caller-supplied path, bundled archive extraction with integrity verification, system PATH search — and the minimum-version check on the interpreter. The minimum is the lowest version the bundled PHAR runs on, PHP 7.4 (user decision PA5). Excludes installing PHP.
-  - **Relationships:** Uses Platform Normalization to select the bundled variant and Integrity Verification to decide whether extraction is needed; precedes Process Execution.
+## Contracts & Flow
 
-- **Name:** Dump Script
-  - **Definition:** The wrapper's own copy of php-parser's command-line script `php-parse`, run by the interpreter with the parser PHAR as its first argument, so the wrapper decides how the AST is encoded.
-  - **Scope:** Includes the operations, flags, header lines, and exit codes of `php-parse` for one target file. Differs from `php-parse` only in the JSON dump: a byte sequence that is not valid UTF-8 becomes U+FFFD, and an encoding failure exits non-zero instead of printing nothing (user decision PA3); the dump is compact and written by walking the AST with an explicit stack, so no depth limit drops a file PHP runs (user decision PA4, [spec.md](spec.md)); an infinite float literal is written as the JSON number `1e999` (user decision PA6). Excludes the parser itself, which stays in the PHAR.
-  - **Relationships:** Published from the classpath by Binary Resolution under a name that carries its checksum; first component after the interpreter in the command line built by Process Execution.
+**With the caller:** A parse takes one source file and returns an execution result. Output formats, interpreter selection and error behavior are specified in [design](design.md); the JSON writer is specified in [spec](spec.md).
 
-- **Name:** Platform Normalization
-  - **Definition:** Mapping raw OS and architecture identifiers to the canonical keys used in bundled binary names, so one naming scheme covers heterogeneous hosts.
-  - **Scope:** Includes OS names ("Mac OS X" → "macos") and CPU architectures ("arm64" → "aarch64"). Excludes hosts with no bundled variant, which fall through to the system PATH.
-  - **Relationships:** Input to Binary Resolution.
+**Internal Processing Flow:** The adapter resolves its interpreter and parser resources, executes one parse, and returns the output file. The caller resolves names the parser leaves unresolved using its own declaration context.
 
-- **Name:** Integrity Verification
-  - **Definition:** CRC32 checksum comparison of an extracted file against a known-good value, preloaded for a binary and computed from the classpath resource for the Dump Script, so an intact extraction is reused and a corrupted one is replaced.
-  - **Scope:** Includes the bundled interpreter, the parser PHAR, and the Dump Script. Excludes caller-supplied binaries.
-  - **Relationships:** Gate inside Binary Resolution that skips re-extraction.
+## Scenarios
 
-- **Name:** Process Execution
-  - **Definition:** Spawning the PHP interpreter with a constructed command line, capturing combined stdout/stderr into a file, and bounding the wait with a fixed liveness backstop.
-  - **Scope:** Includes command construction, output capture, backstop enforcement, and reaping of a hung process. Excludes interpreting the captured output.
-  - **Relationships:** Consumes the binaries chosen by Binary Resolution and the Dump Type; produces a Binary Result; consults the Output Cache first when caching is enabled.
+- **Typical:** A caller parses a valid file and reads the AST from the output file.
+- **Boundary:** No bundled interpreter is available and the first executable named `php` on PATH is below PHP 7.4: construction fails rather than searching later PATH entries.
+- **Boundary:** A source literal contains an invalid UTF-8 byte: the JSON dump substitutes U+FFFD while offsets continue to index the original source.
+- **Boundary:** A deeply nested concatenation produces deeply nested AST nodes: the JSON writer uses no fixed nesting-depth limit, subject to process time and available memory.
+- **Interaction:** A caller uses `executeWith` for a single parse; its target and parser flags are restored on every exit, while inherited execution settings retain assignments made by the caller.
 
-- **Name:** Output Cache
-  - **Definition:** Opt-in reuse of previously captured output keyed by command identity, so an identical command is not re-executed.
-  - **Scope:** Includes a content hash of the command line as cache key and reuse of successful outputs only. Excludes staleness detection — the source file may change under an unchanged path, so invalidation is the caller's responsibility.
-  - **Relationships:** Short-circuits Process Execution on a hit.
+## Rationale and Rejected Alternatives
 
-- **Name:** Dump Type
-  - **Definition:** The output format selector passed to the parser: S-expression (structural, default), JSON (machine-readable), or var-dump (PHP native debug format).
-  - **Scope:** Includes the three formats above. Excludes the boolean options (pretty print, name resolution, positions, column info, recovery), which combine with any dump type.
-  - **Relationships:** One component of the command line built by Process Execution.
-
-- **Name:** Binary Result
-  - **Definition:** The outcome of one execution, pairing an exit code with a reference to the captured output file.
-  - **Scope:** Includes exit code 0 (success), the interpreter's own non-zero codes (parse failure), and -1 (backstop expired). The output file always exists and holds AST text, an error message, or a timeout note.
-  - **Relationships:** Produced by Process Execution; consumed by the AST Consumer.
-
-- **Name:** Scoped Execution
-  - **Definition:** Running one execution under a temporary configuration that is rolled back afterwards, so a one-off override never leaks into later runs.
-  - **Scope:** Includes all arguments and options; rollback happens on both normal completion and failure. Excludes the working directory and cache flag.
-  - **Relationships:** Wraps Process Execution.
-
-Software structure for these concepts: [design.md](design.md).
-
-## 3. Contracts & Flow
-
-**Data Contracts**
-- **With Analysis Orchestrator:** Receives an absolute PHP source file path and optional configuration (dump type, pretty print, name resolution, position info, column info, recovery mode). Returns a Binary Result.
-- **With Bundled Resources:** Expects ZIP archives on the classpath named by convention (`php-cli-{version}-{os}-{arch}.zip`, `php-parser-{version}.zip`). Each ZIP contains a single executable at a known internal path. The Dump Script is a plain PHP file resource, `php_parse.php`.
-
-**Internal Processing Flow**
-1. **Binary Resolution** — On construction, resolve the PHP interpreter and parser PHAR: caller-supplied path, then bundled extraction with integrity verification, then system PATH search. Publish the Dump Script.
-2. **Command Construction** — Assemble the command line: interpreter, Dump Script, parser PHAR, enabled boolean options, dump type flag, target file path.
-3. **Cache Check** — When caching is enabled, compute the command's content hash. If a cached output file exists, return it immediately.
-4. **Process Spawn** — Start the interpreter with stdout/stderr redirected to a temporary file. Wait up to the fixed liveness backstop.
-5. **Result Capture** — On completion, pair the exit code with the output file. On backstop expiry, terminate and reap the process and return a Binary Result with code -1.
-
-## 4. Scenarios
-
-- **Typical:** The orchestrator creates a parser, sets the target file, and executes. The bundled interpreter passes integrity verification (already extracted), the parser runs, and a Binary Result with code 0 and AST output is returned.
-
-- **Boundary:** The bundled interpreter archive is missing from the classpath, and no system PHP at or above the minimum version exists on PATH. Binary Resolution fails on construction — fail-fast, no silent fallback.
-
-- **Boundary:** A Latin-1 file holds `"caf\xe9"`, or a literal holds `"\xff"`. PHP reads the bytes as written; the JSON dump carries U+FFFD in their place, exits 0, and its offsets index the unchanged file.
-
-- **Boundary:** A file holds `$x = 1 . 1 . … . 1;` with 5000 `. 1` terms. PHP runs it; the AST nests one level per operation, past where `json_encode` stops. The JSON dump carries all 5001 literals and exits 0.
-
-- **Boundary:** The parser process hangs. After the fixed one-minute liveness backstop, the process is terminated and reaped, and a Binary Result with code -1 and a timeout note in its output file is returned.
-
-- **Interaction:** The orchestrator uses Scoped Execution to enable JSON output for one call. After execution, all arguments and options are restored, preserving the parser's default configuration for subsequent calls.
+- **Choice:** An explicit stack writes JSON containers so AST depth does not consume the native JSON encoder stack.
+- **Rejected:** Increasing `json_encode`'s depth argument does not remove its native-stack constraint.

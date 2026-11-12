@@ -1,12 +1,13 @@
-# externs-phpparser — Kotlin/JVM wrapper for nikic/PHP-Parser
+# externs-phpparser — PHP parsing adapter
 
 | File | Content |
 |------|---------|
-| [glossary/glossary.md](glossary/glossary.md) | Glossary — the JSON dump |
-| [concept.md](concept.md) | Problem, scope, terminology, data flow, scenarios |
-| [spec.md](spec.md) | JSON dump writer — explicit-stack walk, value kinds, termination |
-| [design.md](design.md) | Class/function specs — AbcBinary, BinPhpParser, BinaryResult, helpers |
-| [impl.md](impl.md) | Library APIs, toolchain, developer notes — php-parser, NameResolver |
-| [performance.md](performance.md) | Benchmarks and optimization log |
-| [research/index.md](research/index.md) | PHP-Parser AST node reference — nodeTypes, subnodes, constants |
-| [llms.txt](llms.txt) | Agent-consumable entry point — links the llms/ module docs |
+| [concept.md](concept.md) | Responsibilities, data flow and scenarios |
+| [design.md](design.md) | Parser types, execution behavior and caller examples |
+| [spec.md](spec.md) | JSON dump writing, invariants and bounds |
+| [impl.md](impl.md) | External APIs and developer instructions |
+| [glossary/index.md](glossary/index.md) | Parser output terminology |
+| [performance.md](performance.md) | Benchmark method and resource constraints |
+| [research/index.md](research/index.md) | AST node and serialization reference |
+| [llms.txt](llms.txt) | Caller documentation entry point |
+| [llms/index.md](llms/index.md) | Caller API and output usage |

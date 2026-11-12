@@ -1,4 +1,4 @@
-# COBRA.EXTERNS.PHPPARSER
+# externs-phpparser
 
 [![codecov](https://codecov.io/gh/jhu-seclab-cobra/externs-phpparser/branch/main/graph/badge.svg)](https://codecov.io/gh/jhu-seclab-cobra/externs-phpparser)
 ![Kotlin JVM](https://img.shields.io/badge/Kotlin%20JVM-2.4.20%20%7C%20JVM%201.8%2B-blue?logo=kotlin)
@@ -8,71 +8,39 @@
 ![Repo Size](https://img.shields.io/github/repo-size/jhu-seclab-cobra/externs-phpparser)
 [![license](https://img.shields.io/github/license/jhu-seclab-cobra/externs-phpparser)](./LICENSE)
 
-> Kotlin/JVM wrapper for nikic/PHP-Parser -- parses PHP source into ASTs.
+> The name identifies the external PHP parser adapter.
 
-Parses PHP source files into AST text (S-expression, JSON, or var-dump) via a managed PHP binary behind `execute()`.
+Parses PHP source files into AST text in S-expression, JSON, or var-dump format.
 
 ## Install
 
-```kotlin
-repositories {
-    maven { url = uri("https://jitpack.io") }
-}
+Requires JDK 8 or later and a Gradle Kotlin/JVM project.
 
-dependencies {
-    implementation("com.github.jhu-seclab-cobra:externs-phpparser:0.1.0")
-}
+```kotlin
+repositories { maven { url = uri("https://jitpack.io") } }
+dependencies { implementation("com.github.jhu-seclab-cobra:externs-phpparser:0.1.0") }
 ```
 
-Bundles [PHP-Parser 5.7.0](https://github.com/nikic/PHP-Parser) and PHP for: macOS x86_64/aarch64, Linux x86_64/aarch64, Windows x86_64 (no system PHP needed). Other platforms require PHP 7.1+ on system PATH.
+The package bundles [PHP-Parser](https://github.com/nikic/PHP-Parser) and a PHP interpreter for macOS and Linux on x86_64/aarch64, and Windows on x86_64. Other platforms require PHP 7.4 or later on `PATH`.
 
 ## Usage
 
 ```kotlin
+import edu.jhu.cobra.externs.phpparser.BinPhpParser
+import java.io.File
+
 val parser = BinPhpParser().apply {
-    dumpType = BinPhpParser.DumpType.JSON  // S_EXPR (default), VAR, JSON
-    doPrettyPrint = true
-    doResolveName = true
+    target = File("example.php").absoluteFile
+    dumpType = BinPhpParser.DumpType.JSON
 }
-
-parser.target = File("path/to/file.php")
 val result = parser.execute()
-// result.code: 0 = success, -1 = timeout
-// result.output: File containing AST text
-```
-
-```kotlin
-// One-off config override (restores original state after)
-val result = parser.executeWith {
-    target = File("path/to/another.php")
-    doWithPositions = true
-}
+println(result.code)
+println(result.output.readText())
 ```
 
 ## API
 
-**`BinPhpParser(phpBinary?, parserBinary?)`** -- extends `AbcBinary`. `executeWith { }` -- temporary config override; restores `target`, `dumpType` and the flags on return, exception and interrupt (`workTmpDir` and `doCacheOutput` assigned inside persist). Properties: `target`, `dumpType` (`S_EXPR`/`VAR`/`JSON`), `doPrettyPrint` (`--pretty-print`), `doResolveName` (`--resolve-names`), `doWithColInfo` (`--with-column-info`), `doWithPositions` (`--with-positions`), `doWithRecovery` (`--with-recovery`).
-
-**`AbcBinary`** -- abstract process runner. `execute(): BinaryResult`, `doCacheOutput: Boolean`. Execution is bounded by a fixed internal 1-minute liveness backstop.
-
-**`BinaryResult(code: Int, output: File)`** -- exit code 0 = success, -1 = timeout.
-
-**`searchBin(name): File?`** -- find executables on system PATH.
-
-**`isPhpVersionValid(binary, minRequired, includeEqual): Boolean`** -- PHP version check.
-
-**Exceptions**: `ExternalBinaryNotFoundException`, `ExternalBinaryInvalidException`, `ExternalBinaryArgumentMissException`.
-
-## Documentation
-
-- [Concepts](docs/concept.md) -- problem context, data flow, core concepts, scenarios
-- [Design](docs/design.md) -- class/type specifications, function signatures, exception types
-- [Implementation Notes](docs/impl.md) -- APIs, libraries, developer instructions
-- [PHP-Parser AST Reference](docs/research/index.md) -- all AST node types, subnodes, JSON format
-
-## For Agents
-
-Agent-consumable documentation index at `docs/llms.txt` ([llmstxt.org](https://llmstxt.org) format).
+[Parser API](docs/llms/parser.md) specifies `BinPhpParser`, its inherited execution API, `BinaryResult`, helpers and exceptions, including parameter types and defaults.
 
 ## Citation
 
@@ -86,6 +54,18 @@ Agent-consumable documentation index at `docs/llms.txt` ([llmstxt.org](https://l
 }
 ```
 
+Please cite the associated paper when using this library.
+
+## Documentation
+
+- [Concepts](docs/concept.md): responsibilities, inputs, outputs and scenarios.
+- [Design](docs/design.md): types, execution contracts and caller examples.
+- [AST reference](docs/research/index.md): node types, subnodes and JSON representation.
+
+## For Agents
+
+Agent-consumable documentation index at [docs/llms.txt](docs/llms.txt) (llmstxt.org format).
+
 ## License
 
-`GPL-2.0` — see [LICENSE](./LICENSE).
+`GPL-2.0` — see [LICENSE](LICENSE).

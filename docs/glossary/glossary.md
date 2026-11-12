@@ -11,3 +11,5 @@ Source locations are relative to `externs-phpparser/src/main/`. A Source that na
 | File | Concern |
 |------|---------|
 | [glossary-dump.md](glossary-dump.md) | The text forms of a parsed AST |
+
+Retired names: [glossary-retired.md](glossary-retired.md).

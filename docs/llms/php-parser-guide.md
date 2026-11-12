@@ -1,167 +1,38 @@
-# PHP-Parser Integration Guide
+# Parser output usage
 
-> How to parse PHP source code into AST via BinPhpParser, and what the output contains.
+> Caller requirements for reading parser output and unresolved names.
 
 ## Quick Start
 
 ```kotlin
+import edu.jhu.cobra.externs.phpparser.BinPhpParser
+import java.io.File
 val parser = BinPhpParser().apply {
+    target = File("example.php").absoluteFile
     dumpType = BinPhpParser.DumpType.JSON
-    doResolveName = true
-    doWithRecovery = true
 }
-parser.target = File("src/Example.php")
 val result = parser.execute()
-val json = result.output.readText()
+println(result.code)
+println(result.output.readText())
 ```
 
-- Static analysis configuration: `JSON` dump, name resolution on, recovery on.
+## API
 
-## Parsing Pipeline
+- `BinaryResult.code: Int` is the process exit code; `-1` indicates timeout.
+- `BinaryResult.output: File` contains merged stdout and stderr, including diagnostics and operation headers before the payload.
+- The [AST reference](../research/index.md) specifies node and subnode representations.
 
-```
-PHP source file
-  → BinPhpParser (Kotlin wrapper)
-    → php-cli binary (bundled or system)
-      → php_parse.php dump script (bundled), loading php-parser.phar (nikic/PHP-Parser v5.7.0)
-        → Lexer → Parser → AST
-        → NameResolver visitor (if --resolve-names)
-        → JSON writer (if --json-dump): compact, explicit stack, no depth limit; invalid UTF-8 → U+FFFD; encoding failure → non-zero exit
-  → BinaryResult(code, output: File)
-    → JSON text: array of Stmt nodes
-```
+## Configuration
 
-## JSON Output Format
-
-- Top-level: JSON array of statement nodes.
-- Each node: `nodeType`, `attributes`, subnodes.
-
-```json
-{
-    "nodeType": "Stmt_Class",
-    "attributes": {
-        "startLine": 3, "endLine": 10,
-        "startTokenPos": 5, "endTokenPos": 40,
-        "startFilePos": 20, "endFilePos": 150
-    },
-    "name": { "nodeType": "Identifier", "name": "User" },
-    "extends": { "nodeType": "Name_FullyQualified", "name": "App\\Models\\Base" },
-    "stmts": [ ... ],
-    "namespacedName": { "nodeType": "Name", "name": "App\\Models\\User" }
-}
-```
-
-- Output file starts with header lines (`====> File ...`, `==> Resolved names.`). Skip lines before the `[` when parsing JSON.
-
-## Name Resolution Behavior
-
-- `doResolveName = true` applies `NodeVisitor\NameResolver`.
-
-### Resolved to `Name_FullyQualified`
-
-| PHP Code | AST Name | Resolved To |
-|----------|---------|-------------|
-| `use App\Models\User; new User()` | `Name_FullyQualified` | `App\Models\User` |
-| `use App\Foo as F; new F()` | `Name_FullyQualified` | `App\Foo` |
-| `extends Foo` in `namespace App` | `Name_FullyQualified` | `App\Foo` |
-| `new namespace\Sub()` in `namespace App` | `Name_FullyQualified` | `App\Sub` |
-| `use App\{A, B}; new A()` | `Name_FullyQualified` | `App\A` |
-| `use function App\helper; helper()` | `Name_FullyQualified` | `App\helper` |
-
-### Left as `Name` (unresolved)
-
-| PHP Code | AST Name | Why | Who Resolves |
-|----------|---------|-----|-------------|
-| `self::method()` | `Name("self")` | Class-context keyword | Phase 0: replace with current class FQN |
-| `parent::method()` | `Name("parent")` | Needs extends resolution | Phase 0: replace with parent class FQN |
-| `static::method()` | `Name("static")` | Runtime late binding | Cannot resolve statically |
-| `strlen()` in namespace | `Name("strlen")` | Runtime fallback | Phase 1: check namespace, fallback global |
-| `PHP_INT_MAX` in namespace | `Name("PHP_INT_MAX")` | Runtime fallback | Phase 1: check namespace, fallback global |
-
-- Unqualified functions/constants carry a `namespacedName` attribute with the namespace-prefixed form (e.g., `App\strlen`).
-
-### Structural Nodes
-
-- `Stmt_Namespace` and `Stmt_Use` remain in the AST after resolution.
-- They are informational — all resolved references use `Name_FullyQualified` directly.
-
-## AST Node Types (Key Categories)
-
-### Statements
-
-| nodeType | PHP | Key Subnodes |
-|----------|-----|-------------|
-| `Stmt_Namespace` | `namespace App;` | `name`, `stmts` |
-| `Stmt_Use` | `use App\Foo;` | `uses: UseItem[]` |
-| `Stmt_Class` | `class Foo {}` | `name`, `extends`, `implements`, `stmts`, `namespacedName` |
-| `Stmt_Interface` | `interface IFoo {}` | `name`, `extends`, `stmts` |
-| `Stmt_Trait` | `trait MyTrait {}` | `name`, `stmts` |
-| `Stmt_Enum` | `enum Color {}` | `name`, `stmts`, `scalarType` |
-| `Stmt_Function` | `function foo() {}` | `name`, `params`, `stmts`, `returnType` |
-| `Stmt_ClassMethod` | method in class | `name`, `params`, `stmts`, `flags`, `returnType` |
-| `Stmt_Property` | `public $x;` | `props: PropertyItem[]`, `flags`, `type` |
-| `Stmt_ClassConst` | `const X = 1;` | `consts`, `flags` |
-| `Stmt_If` | `if () {}` | `cond`, `stmts`, `elseifs`, `else` |
-| `Stmt_Return` | `return $x;` | `expr` |
-
-### Expressions
-
-| nodeType | PHP | Key Subnodes |
-|----------|-----|-------------|
-| `Expr_Variable` | `$x` | `name` |
-| `Expr_Assign` | `$x = 1` | `var`, `expr` |
-| `Expr_FuncCall` | `foo()` | `name`, `args` |
-| `Expr_MethodCall` | `$obj->m()` | `var`, `name`, `args` |
-| `Expr_StaticCall` | `Cls::m()` | `class`, `name`, `args` |
-| `Expr_New` | `new Foo()` | `class`, `args` |
-| `Expr_PropertyFetch` | `$obj->p` | `var`, `name` |
-| `Expr_ArrayDimFetch` | `$a["k"]` | `var`, `dim` |
-| `Expr_Array` | `[1, 2]` | `items: ArrayItem[]` |
-
-### Names
-
-| nodeType | Meaning |
-|----------|---------|
-| `Name` | Unresolved name (self, parent, strlen) |
-| `Name_FullyQualified` | Resolved FQN (\App\Models\User) |
-| `Identifier` | Simple identifier (method name, property name) |
-
-### Scalars (v5 names)
-
-| nodeType | PHP | v4 Name |
-|----------|-----|---------|
-| `Scalar_Int` | `42` | `Scalar_LNumber` |
-| `Scalar_Float` | `3.14` | `Scalar_DNumber` |
-| `Scalar_String` | `"hello"` | same |
-| `Scalar_InterpolatedString` | `"Hello $name"` | `Scalar_Encapsed` |
-
-### Modifier Flags
-
-- Stored in `flags` field as bitmask.
-
-| Flag | Value | PHP |
-|------|-------|-----|
-| PUBLIC | 1 | `public` |
-| PROTECTED | 2 | `protected` |
-| PRIVATE | 4 | `private` |
-| STATIC | 8 | `static` |
-| ABSTRACT | 16 | `abstract` |
-| FINAL | 32 | `final` |
-| READONLY | 64 | `readonly` |
-
-## Error Handling
-
-| Scenario | Behavior |
-|----------|----------|
-| Valid PHP | `BinaryResult(code=0, output=jsonFile)` |
-| Syntax error, no recovery | `BinaryResult(code=1, output=errorFile)` |
-| Syntax error, with recovery | `BinaryResult(code=0, output=partialAst)` — `Expr_Error` nodes inserted |
-| Timeout | `BinaryResult(code=-1, output=timeoutFile)` |
-| No PHP binary | `ExternalBinaryNotFoundException` at construction |
+- Set `dumpType = BinPhpParser.DumpType.JSON` to request the [JSON dump](../glossary/glossary-dump.md#json-dump).
+- Set `doResolveName = true` to apply PHP-Parser name resolution.
+- Set `doWithRecovery = true` to collect parse diagnostics and request a partial AST.
+- Leave `doPrettyPrint` false when expecting only an AST payload; enabling it emits PHP text before the requested dump.
 
 ## Gotchas
 
-- Skip the `====> File ...` and `==> Resolved names.` header lines before the JSON `[`.
-- `static::` names are never resolved; `self`/`parent` and unqualified function/constant names need downstream resolution.
-- `Name.name` is one string (`"App\\Models\\User"`), not a `parts` array.
-- v5 renamed scalar nodes (`Scalar_LNumber` → `Scalar_Int`); match on v5 names only.
+- Skip diagnostic and operation-header lines before decoding the expected payload; output is not a standalone JSON file.
+- Recovery can exit `0` with no AST when the parser returns no statements; require a JSON payload before decoding.
+- Name resolution leaves `self`, `parent`, `static`, and unqualified function/constant names for caller lookup. Unqualified functions/constants carry a namespace-prefixed `namespacedName` attribute.
+- `Name.name` is one backslash-separated string. `Name_FullyQualified` represents resolved names; `Stmt_Namespace` and `Stmt_Use` remain in the output.
+- Name resolution resolves namespace-relative names; it does not decide late static binding.

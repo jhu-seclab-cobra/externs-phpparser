@@ -10,23 +10,23 @@ Expression (`Expr_*`), scalar (`Scalar_*`), and name nodes as produced by [nikic
 
 | nodeType | Subnodes |
 |----------|----------|
-| `Expr_Variable` | `name: string|Expr` |
+| `Expr_Variable` | `name: string\|Expr` |
 | `Expr_ArrayDimFetch` | `var: Expr`, `dim: Expr?` |
-| `Expr_PropertyFetch` | `var: Expr`, `name: Identifier|Expr` |
-| `Expr_NullsafePropertyFetch` | `var: Expr`, `name: Identifier|Expr` |
-| `Expr_StaticPropertyFetch` | `class: Name|Expr`, `name: VarLikeIdentifier|Expr` |
-| `Expr_ClassConstFetch` | `class: Name|Expr`, `name: Identifier` |
+| `Expr_PropertyFetch` | `var: Expr`, `name: Identifier\|Expr` |
+| `Expr_NullsafePropertyFetch` | `var: Expr`, `name: Identifier\|Expr` |
+| `Expr_StaticPropertyFetch` | `class: Name\|Expr`, `name: VarLikeIdentifier\|Expr` |
+| `Expr_ClassConstFetch` | `class: Name\|Expr`, `name: Identifier\|Expr\|Error` |
 | `Expr_ConstFetch` | `name: Name` |
 
 ### Calls
 
 | nodeType | Subnodes |
 |----------|----------|
-| `Expr_FuncCall` | `name: Name|Expr`, `args: Arg[]` |
-| `Expr_MethodCall` | `var: Expr`, `name: Identifier|Expr`, `args: Arg[]` |
-| `Expr_NullsafeMethodCall` | `var: Expr`, `name: Identifier|Expr`, `args: Arg[]` |
-| `Expr_StaticCall` | `class: Name|Expr`, `name: Identifier|Expr`, `args: Arg[]` |
-| `Expr_New` | `class: Name|Expr|Stmt_Class`, `args: Arg[]` |
+| `Expr_FuncCall` | `name: Name\|Expr`, `args: Arg[]` |
+| `Expr_MethodCall` | `var: Expr`, `name: Identifier\|Expr`, `args: Arg[]` |
+| `Expr_NullsafeMethodCall` | `var: Expr`, `name: Identifier\|Expr`, `args: Arg[]` |
+| `Expr_StaticCall` | `class: Name\|Expr`, `name: Identifier\|Expr`, `args: Arg[]` |
+| `Expr_New` | `class: Name\|Expr\|Stmt_Class`, `args: Arg[]` |
 
 ### Assignment
 
@@ -44,7 +44,7 @@ All assignment nodes have subnodes: `var: Expr`, `expr: Expr`
 | `Expr_AssignOp_Pow` | `**=` |
 | `Expr_AssignOp_Concat` | `.=` |
 | `Expr_AssignOp_BitwiseAnd` | `&=` |
-| `Expr_AssignOp_BitwiseOr` | `|=` |
+| `Expr_AssignOp_BitwiseOr` | `\|=` |
 | `Expr_AssignOp_BitwiseXor` | `^=` |
 | `Expr_AssignOp_ShiftLeft` | `<<=` |
 | `Expr_AssignOp_ShiftRight` | `>>=` |
@@ -90,8 +90,8 @@ All cast nodes have subnode: `expr: Expr`
 
 | nodeType | Subnodes |
 |----------|----------|
-| `Expr_Array` | `items: (ArrayItem|null)[]` |
-| `Expr_List` | `items: (ArrayItem|null)[]` |
+| `Expr_Array` | `items: (ArrayItem\|null)[]` |
+| `Expr_List` | `items: (ArrayItem\|null)[]` |
 
 ### Closures
 
@@ -114,7 +114,7 @@ All cast nodes have subnode: `expr: Expr`
 
 | nodeType | Subnodes |
 |----------|----------|
-| `Expr_Instanceof` | `expr: Expr`, `class: Name|Expr` |
+| `Expr_Instanceof` | `expr: Expr`, `class: Name\|Expr` |
 | `Expr_Clone` | `expr: Expr` |
 | `Expr_Empty` | `expr: Expr` |
 | `Expr_Eval` | `expr: Expr` |
@@ -122,7 +122,7 @@ All cast nodes have subnode: `expr: Expr`
 | `Expr_Include` | `expr: Expr`, `type: int` |
 | `Expr_Isset` | `vars: Expr[]` |
 | `Expr_Print` | `expr: Expr` |
-| `Expr_ShellExec` | `parts: (Expr|InterpolatedStringPart)[]` |
+| `Expr_ShellExec` | `parts: (Expr\|InterpolatedStringPart)[]` |
 | `Expr_Error` | *(none)* |
 
 ---
@@ -131,10 +131,10 @@ All cast nodes have subnode: `expr: Expr`
 
 | nodeType | Subnodes | Extra attributes |
 |----------|----------|------------------|
-| `Scalar_Int` | `value: int` | `kind`: 0=decimal, 8=octal, 16=hex, 2=binary |
+| `Scalar_Int` | `value: int` | `kind`: 10=decimal, 8=octal, 16=hex, 2=binary |
 | `Scalar_Float` | `value: float` | |
 | `Scalar_String` | `value: string` | `kind`: 1=single, 2=double, 3=heredoc, 4=nowdoc; `rawValue` for heredoc/nowdoc |
-| `Scalar_InterpolatedString` | `parts: (Expr|InterpolatedStringPart)[]` | |
+| `Scalar_InterpolatedString` | `parts: (Expr\|InterpolatedStringPart)[]` | |
 
 ### Magic Constants
 

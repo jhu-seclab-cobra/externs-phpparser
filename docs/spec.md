@@ -1,8 +1,8 @@
-# externs-phpparser: JSON Dump Writer
+# externs-phpparser: JSON dump writer
 
-The algorithm the Dump Script runs for `--json-dump` ([concept.md](concept.md) Dump Script). It writes the same JSON text as `json_encode($stmts, JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)` would with no depth limit, except for an infinite float, which `json_encode` rejects. It walks the AST with an explicit stack, so the nesting depth is bounded by the interpreter's memory alone, never by `json_encode`'s depth limit or the native stack (user decision PA4).
+The algorithm the wrapper script runs for `--json-dump` ([JSON dump](glossary/glossary-dump.md#json-dump)). It writes the same JSON text as `json_encode($stmts, JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)` would with no depth limit, except for an infinite float, which `json_encode` rejects. It walks the AST with an explicit stack, so the writer imposes no fixed nesting-depth limit; available PHP memory and the wrapper’s one-minute execution timeout still bound the invocation.
 
-## Input and Output
+## Problem
 
 - **Input:** the array of top-level statements returned by the parser, after the requested operations ran.
 - **Output:** one compact JSON text (no whitespace between tokens) on success; on failure, no JSON, a message on stderr, and exit code 1.
@@ -13,7 +13,7 @@ Every value met during the walk is resolved to one of three kinds before it is w
 
 1. **Object implementing `JsonSerializable`** (every php-parser node and comment): replaced by the value its `jsonSerialize()` returns, and resolved again. `jsonSerialize()` returns one level only; the children stay unexpanded objects.
 2. **Container:** a PHP array. It is a JSON array when its keys are exactly `0, 1, …, n-1` in order, the empty array included; otherwise a JSON object whose member names are the keys as strings. This is `json_encode`'s rule.
-3. **Leaf:** `null`, a boolean, an integer, a float, or a string. It is written as `json_encode` writes it with the two flags above, so string escaping, U+FFFD substitution and float formatting are `json_encode`'s own. An infinite float is the exception: it is written as the JSON number `1e999`, or `-1e999` when negative, which a JSON reader decoding numbers as IEEE 754 doubles (PHP `json_decode` among them) reads back as the same infinity (user decision PA6). A NaN float has no JSON number and is passed to `json_encode`, which rejects it.
+3. **Leaf:** `null`, a boolean, an integer, a float, or a string. It is written as `json_encode` writes it with the two flags above, so string escaping, U+FFFD substitution and float formatting are `json_encode`'s own. An infinite float is the exception: it is written as the JSON number `1e999`, or `-1e999` when negative, which a JSON reader decoding numbers as IEEE 754 doubles (PHP `json_decode` among them) reads back as the same infinity. A NaN float has no JSON number and is passed to `json_encode`, which rejects it.
 
 Any other object fails the dump: php-parser emits none.
 
@@ -27,6 +27,12 @@ Any other object fails the dump: php-parser emits none.
    4. A container: write its opening bracket and push its frame. A leaf: write it.
 3. Print the written text. A leaf `json_encode` rejects (a NaN float) throws `JsonException`, which ends the run as an encoding failure.
 
+## Invariants
+
+- Each open frame records the not-yet-written suffix of its container.
+- Output before the current cursor is complete and is never rewritten.
+- A value is serialized only after resolving its `JsonSerializable` representation.
+
 ## Termination
 
 Each step either writes one value or closes one frame. Every value belongs to exactly one container, since the AST is a tree, so each value is resolved once and each frame is pushed and popped once.
@@ -37,3 +43,7 @@ Each step either writes one value or closes one frame. Every value belongs to ex
 - `[]` from a node with no statements: written as `[]`, as `json_encode` does.
 - `<?php $x = 1e999;`: PHP prints `float(INF)` for `$x`. php-parser yields a `Scalar_Float` whose value is infinite, and the writer emits `"value":1e999`. `-1e999` is an `Expr_UnaryMinus` over the same `Scalar_Float`, so a literal never yields a negative float leaf.
 - NaN: no PHP literal parses to a NaN `Scalar_Float`, so a source file never reaches the encoding failure through a float.
+
+## Complexity
+
+For N visited values and B output bytes, time is O(N + B) and additional storage, including encoded output and container frames, is O(N + B). N includes resolved node properties and array elements; B includes encoded member names and strings.

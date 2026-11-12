@@ -26,7 +26,7 @@ describe immutable bundled resources and platforms; shared extracted resources a
 
 **State/Fields**:
 - `workTmpDir: Path` (public, mutable) — Working directory for process execution, output files, and cache files. Defaults to `{java.io.tmpdir}/cobra/binaries/{className}`.
-- `executionTimeoutMillis: Long` (internal, open) — Liveness backstop before process destruction. Fixed at `EXECUTION_TIMEOUT_MILLIS` (1 minute); open only so test doubles can shorten waits. Never per-run configuration (`resource-bounds.md`).
+- `executionTimeoutMillis: Long` (internal, open) — Liveness backstop before process destruction. Fixed at `EXECUTION_TIMEOUT_MILLIS` (1 minute); open only so test doubles can shorten waits. Not exposed as per-run configuration.
 - `terminationGraceMillis: Long` (internal, open) — Grace period before forcible termination. Fixed at `TERMINATION_GRACE_MILLIS` (5 s); open only for test doubles.
 - `doCacheOutput: Boolean` (public, mutable) — Whether to reuse cached output for identical commands. Defaults to false.
 
@@ -51,7 +51,7 @@ describe immutable bundled resources and platforms; shared extracted resources a
 **State/Fields**:
 - `phpBinaryFile: File` (private) — Resolved PHP interpreter (caller-supplied, bundled, or system). Resolved eagerly on construction.
 - `parserBinaryFile: File` (private) — Resolved php-parser PHAR. Resolved eagerly on construction.
-- `dumpScriptFile: File` (private) — Published Dump Script (`php_parse.php` resource). Published eagerly on construction.
+- `dumpScriptFile: File` (private) — Published wrapper script (`php_parse.php` resource). Published eagerly on construction.
 - `config: ParseConfig` (private) — Immutable data class holding the per-run settings: `target: File?` (unset until assigned), `dumpType: DumpType` (defaults to `S_EXPR`) and five Boolean flags that default to false. Each public property below reads it and a setter replaces it with a modified copy.
 - `target: File` — Target PHP source file to parse. Required before `execute()`; reading it unset raises `ExternalBinaryArgumentMissException`.
 - `dumpType: DumpType` — AST output format.
@@ -71,7 +71,7 @@ describe immutable bundled resources and platforms; shared extracted resources a
 **Methods**:
 
 `getCommandArray(): Array<String>` (override)
-- **Behavior**: Builds the command array in one pass: PHP binary, Dump Script, parser PHAR, each flag whose property is `true` in the order pretty-print, resolve-names, with-column-info, with-positions, with-recovery, dump type flag, target path. Every dump type runs through the Dump Script, so the command shape never depends on `dumpType`.
+- **Behavior**: Builds the command array in one pass: PHP binary, wrapper script, parser PHAR, each flag whose property is `true` in the order pretty-print, resolve-names, with-column-info, with-positions, with-recovery, dump type flag, target path. Every dump type runs through the wrapper script, so the command shape never depends on `dumpType`.
 - **Input**: Reads `phpBinaryFile`, `dumpScriptFile`, `parserBinaryFile` and one read of `config`.
 - **Output**: `Array<String>`.
 - **Errors**: `ExternalBinaryArgumentMissException` if `target` not set.
@@ -84,9 +84,9 @@ describe immutable bundled resources and platforms; shared extracted resources a
 - **Errors**: Propagates any exception from `tmpConfig` or `execute()`, including `InterruptedException`. The configuration is restored on every path. One instance serves one run at a time (see Design Overview).
 
 **Construction**:
-- PHP binary resolution: caller-supplied (validated `>= MIN_PHP_VERSION`, 7.4, the version the bundled PHAR's Composer platform check requires; user decision PA5) > bundled ZIP extraction for the normalized platform (with CRC32 check) > system PATH search (first `php` on PATH that satisfies the minimum version). Hosts with no bundled variant, or a missing bundled resource, go straight to the PATH search. Throws `ExternalBinaryNotFoundException` when all fail; throws `ExternalBinaryInvalidException` when a caller-supplied interpreter is below the minimum version.
-- Parser binary resolution: caller-supplied (not validated; must be a php-parser PHAR, which the Dump Script loads with `Phar::loadPhar`) > bundled ZIP extraction (with CRC32 check). Throws `ExternalBinaryNotFoundException` when the bundled resource is absent.
-- Dump Script publication: reads the `DUMP_SCRIPT_RESOURCE` classpath resource, computes its CRC32, and publishes it atomically as `workTmpDir/php_parse-<crc32>.php` unless a file of that name with that CRC32 exists. The checksum in the name makes a changed script a changed command line, so the output cache never returns output of an earlier script. Throws `ExternalBinaryNotFoundException` when the resource is absent.
+- PHP binary resolution: caller-supplied (validated `>= MIN_PHP_VERSION`, 7.4, the version the bundled PHAR's Composer platform check requires) > bundled ZIP extraction for the normalized platform (with CRC32 check) > system PATH search (first executable named `php` on PATH, validated against the minimum; validation failure does not search later PATH entries). Hosts with no bundled variant, or a missing bundled resource, go straight to the PATH search. Throws `ExternalBinaryNotFoundException` when all fail; throws `ExternalBinaryInvalidException` when a caller-supplied interpreter is below the minimum version.
+- Parser binary resolution: caller-supplied (not validated; must be a php-parser PHAR, which the wrapper script loads with `Phar::loadPhar`) > bundled ZIP extraction (with CRC32 check). Throws `ExternalBinaryNotFoundException` when the bundled resource is absent.
+- wrapper script publication: reads the `DUMP_SCRIPT_RESOURCE` classpath resource, computes its CRC32, and publishes it atomically as `workTmpDir/php_parse-<crc32>.php` unless a file of that name with that CRC32 exists. The checksum in the name makes a changed script a changed command line, so the output cache never returns output of an earlier script. Throws `ExternalBinaryNotFoundException` when the resource is absent.
 - A pre-existing extraction under `workTmpDir` whose CRC32 matches `BUNDLED_BINARY_CRC32` is reused; extraction is skipped.
 - An extracted interpreter that cannot be marked executable throws `ExternalBinaryInvalidException`.
 
@@ -172,3 +172,20 @@ describe immutable bundled resources and platforms; shared extracted resources a
 | `ExternalBinaryNotFoundException(name, under)` | `RuntimeException` | Binary resolution fails — not found in bundled resources or system PATH — during `BinPhpParser` construction; or `extractFileFromZip` finds no matching entry. |
 | `ExternalBinaryInvalidException(name, reason, cause)` | `RuntimeException` | A binary exists but fails validation — caller-supplied interpreter below the minimum version, invalid version format, version component beyond `Int` range, unrunnable or hung version probe, unparsable version output, or an extracted interpreter that cannot be marked executable. |
 | `ExternalBinaryArgumentMissException(argName)` | `RuntimeException` | The required `target` is read before being set, including by `getCommandArray()`. |
+
+## Caller Examples
+
+```kotlin
+import edu.jhu.cobra.externs.phpparser.BinPhpParser
+import java.io.File
+
+val parser = BinPhpParser().apply {
+    target = File("example.php").absoluteFile
+    dumpType = BinPhpParser.DumpType.JSON
+}
+val result = parser.execute()
+println(result.code)
+println(result.output.readText())
+```
+
+A recovery parse can exit with code 0 after producing diagnostics but no AST. A caller expecting JSON checks for a payload after the diagnostic prefix before decoding; code 0 alone does not establish its presence. Failed parses and recovered diagnostics are part of the captured stdout/stderr contract.

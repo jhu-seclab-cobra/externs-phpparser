@@ -2,7 +2,7 @@
 
 JSON serialization of AST nodes produced by [nikic/php-parser](https://github.com/nikic/PHP-Parser) (v5.x).
 
-Each node serializes to JSON with a `nodeType` string identifier, an `attributes` object, and type-specific subnodes.
+Each node serializes with `nodeType`, its actual `attributes` object, and type-specific subnodes. An attribute key is present only when recorded on that node.
 
 ---
 
@@ -23,7 +23,7 @@ Each node serializes to JSON with a `nodeType` string identifier, an `attributes
 }
 ```
 
-### Attributes (all nodes)
+### Supported attributes
 
 | Key | Type | Description |
 |-----|------|-------------|
