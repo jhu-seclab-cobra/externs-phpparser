@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlinx.kover)
@@ -10,8 +12,18 @@ plugins {
 group = "edu.jhu.cobra"
 version = "0.1.0"
 
-val sourceJavaVersion = JavaVersion.toVersion(libs.versions.javaSource.get())
-val targetJavaVersion = JavaVersion.toVersion(libs.versions.javaTarget.get())
+val minJavaProperty = providers.gradleProperty("minJava").get()
+val minJava =
+    minJavaProperty.toIntOrNull()?.takeIf { it >= 8 }
+        ?: throw GradleException("minJava must be a Java version of 8 or later, got '$minJavaProperty'.")
+val targetJavaVersion = JavaVersion.toVersion(minJava)
+val runningJavaVersion = JavaVersion.current()
+if (runningJavaVersion < targetJavaVersion) {
+    throw GradleException(
+        "minJava=$minJava requires JDK $minJava or later to run Gradle. " +
+            "Gradle is running on JDK ${runningJavaVersion.majorVersion}.",
+    )
+}
 
 repositories {
     mavenCentral()
@@ -37,24 +49,21 @@ tasks.register<Test>("performanceTest") {
 
 kotlin {
     explicitApi()
-    jvmToolchain { languageVersion.set(JavaLanguageVersion.of(sourceJavaVersion.majorVersion)) }
     compilerOptions {
-        jvmTarget =
-            org.jetbrains.kotlin.gradle.dsl.JvmTarget
-                .fromTarget(targetJavaVersion.toString())
-        freeCompilerArgs.add("-Xjdk-release=${targetJavaVersion.majorVersion}")
+        jvmTarget.set(JvmTarget.fromTarget(targetJavaVersion.toString()))
+        freeCompilerArgs.add("-Xjdk-release=$minJava")
     }
 }
 
 java {
-    sourceCompatibility = sourceJavaVersion
+    sourceCompatibility = targetJavaVersion
     targetCompatibility = targetJavaVersion
     withSourcesJar()
     withJavadocJar()
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(targetJavaVersion.majorVersion.toInt())
+    options.release.set(minJava)
 }
 
 publishing {
