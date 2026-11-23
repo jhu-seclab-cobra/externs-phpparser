@@ -1,7 +1,7 @@
 [versions]
 kotlin = "2.4.20"
 kover = "0.9.9"
-javaSource = "8"
+javaSource = "21"
 javaTarget = "8"
 ktlint = "14.2.0"
 detekt = "1.23.8"

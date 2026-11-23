@@ -25,6 +25,7 @@ dependencies {
 }
 
 tasks.test {
+    jvmArgs("--add-opens=java.base/java.lang=ALL-UNNAMED")
     useJUnitPlatform { excludeTags("performance") }
 }
 
@@ -41,6 +42,7 @@ kotlin {
         jvmTarget =
             org.jetbrains.kotlin.gradle.dsl.JvmTarget
                 .fromTarget(targetJavaVersion.toString())
+        freeCompilerArgs.add("-Xjdk-release=${targetJavaVersion.majorVersion}")
     }
 }
 
@@ -49,6 +51,10 @@ java {
     targetCompatibility = targetJavaVersion
     withSourcesJar()
     withJavadocJar()
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(targetJavaVersion.majorVersion.toInt())
 }
 
 publishing {
