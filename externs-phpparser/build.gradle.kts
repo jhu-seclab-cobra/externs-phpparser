@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "edu.jhu.cobra"
-version = "0.1.0"
+version = libs.versions.projectVersion.get()
 
 val minJavaProperty = providers.gradleProperty("minJava").get()
 val minJava =
@@ -36,17 +36,6 @@ dependencies {
     testImplementation(libs.mockk)
 }
 
-tasks.test {
-    jvmArgs("--add-opens=java.base/java.lang=ALL-UNNAMED")
-    useJUnitPlatform { excludeTags("performance") }
-}
-
-tasks.register<Test>("performanceTest") {
-    useJUnitPlatform { includeTags("performance") }
-    jvmArgs("-Xmx2g", "-Xms1g")
-    testLogging { showStandardStreams = true }
-}
-
 kotlin {
     explicitApi()
     compilerOptions {
@@ -66,12 +55,19 @@ tasks.withType<JavaCompile>().configureEach {
     options.release.set(minJava)
 }
 
-publishing {
-    publications { create<MavenPublication>("maven") { from(components["java"]) } }
+tasks.test {
+    jvmArgs("--add-opens=java.base/java.lang=ALL-UNNAMED")
+    useJUnitPlatform { excludeTags("performance") }
+}
+
+tasks.register<Test>("performanceTest") {
+    useJUnitPlatform { includeTags("performance") }
+    jvmArgs("-Xmx2g", "-Xms1g")
+    testLogging { showStandardStreams = true }
 }
 
 ktlint {
-    version.set("1.8.0")
+    version.set(libs.versions.ktlintEngine.get())
     verbose.set(true)
     android.set(false)
     outputToConsole.set(true)
@@ -87,4 +83,10 @@ detekt {
     config.setFrom(files("${projectDir.parentFile}/config/detekt/detekt.yml"))
     buildUponDefaultConfig = true
     parallel = true
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") { from(components["java"]) }
+    }
 }

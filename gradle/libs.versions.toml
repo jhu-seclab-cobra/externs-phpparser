@@ -1,7 +1,9 @@
 [versions]
+projectVersion = "0.1.0"
 kotlin = "2.4.20"
 kover = "0.9.9"
 ktlint = "14.2.0"
+ktlintEngine = "1.8.0"
 detekt = "1.23.8"
 junit = "5.14.4"
 mockk = "1.14.11"
