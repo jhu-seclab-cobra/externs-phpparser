@@ -2,8 +2,8 @@
 
 /*
  * Derived from bin/php-parse of nikic/php-parser. It runs against a php-parser PHAR given as the
- * first argument, parses exactly one file, and writes the JSON dump as compact json_encode text with
- * invalid UTF-8 replaced by U+FFFD. The dump walks the AST with an explicit stack, so no nesting depth
+ * first argument, parses exactly one file, and writes compact JSON with one escape per byte outside
+ * UTF-8. The dump walks the AST with an explicit stack, so no nesting depth
  * limit applies, an infinite float is written as 1e999, and it exits non-zero when the encoding fails.
  *
  * Copyright (c) 2011, Nikita Popov
@@ -38,8 +38,21 @@
 // The alias the PHAR's own stub maps, so its autoloader resolves whatever the PHAR file is named.
 const PARSER_PHAR_ALIAS = 'php-parser.phar';
 
-// Flags of every json_encode call of the dump: invalid UTF-8 becomes U+FFFD and a failure throws.
-const DUMP_JSON_FLAGS = JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR;
+// Byte-mode matching keeps malformed data available. Each alternative consumes a valid UTF-8 run,
+// one valid multibyte character, or one otherwise unmatched byte.
+const JSON_STRING_PARTS = <<<'PATTERN'
+~
+    [\x00-\x7f]++
+  | [\xc2-\xdf][\x80-\xbf]
+  | \xe0[\xa0-\xbf][\x80-\xbf]
+  | [\xe1-\xec\xee-\xef][\x80-\xbf]{2}
+  | \xed[\x80-\x9f][\x80-\xbf]
+  | \xf0[\x90-\xbf][\x80-\xbf]{2}
+  | [\xf1-\xf3][\x80-\xbf]{3}
+  | \xf4[\x80-\x8f][\x80-\xbf]{2}
+  | [\x80-\xff]
+~x
+PATTERN;
 
 // A JSON number past the double range, which IEEE 754 readers read back as positive infinity.
 const INFINITE_FLOAT_JSON = '1e999';
@@ -121,7 +134,7 @@ foreach ($operations as $operation) {
     }
 }
 
-// JSON carries only UTF-8 text: each invalid byte sequence becomes U+FFFD, and a failure ends the run.
+// Finish encoding before printing, so any failure ends the run without a partial dump.
 function encodeJson(array $stmts) {
     try {
         return writeJson($stmts);
@@ -161,7 +174,7 @@ function writeJson(array $root) {
             $text .= ',';
         }
         if (!$frame->isList) {
-            $text .= json_encode((string) $frame->keys[$frame->cursor], DUMP_JSON_FLAGS) . ':';
+            $text .= encodeJsonString((string) $frame->keys[$frame->cursor]) . ':';
         }
         $value = resolveJsonValue($frame->values[$frame->cursor++]);
         $text .= is_array($value) ? pushJsonFrame($stack, $value) : encodeJsonLeaf($value);
@@ -174,7 +187,28 @@ function encodeJsonLeaf($value) {
     if (is_float($value) && is_infinite($value)) {
         return $value > 0 ? INFINITE_FLOAT_JSON : '-' . INFINITE_FLOAT_JSON;
     }
-    return json_encode($value, DUMP_JSON_FLAGS);
+    return is_string($value) ? encodeJsonString($value) : json_encode($value, JSON_THROW_ON_ERROR);
+}
+
+function encodeJsonString(string $value): string {
+    $json = json_encode($value);
+    if ($json !== false) {
+        return $json;
+    }
+    $body = preg_replace_callback(JSON_STRING_PARTS, 'encodeJsonStringPart', $value);
+    if ($body === null) {
+        throw new JsonException('Could not encode original string bytes', preg_last_error());
+    }
+    return '"' . $body . '"';
+}
+
+function encodeJsonStringPart(array $match): string {
+    $part = $match[0];
+    $first = ord($part[0]);
+    if (strlen($part) === 1 && $first >= 0x80) {
+        return sprintf('\\udc%02x', $first);
+    }
+    return substr(json_encode($part, JSON_THROW_ON_ERROR), 1, -1);
 }
 
 // Opens $container on the stack and returns its opening bracket.
@@ -215,7 +249,7 @@ Operations is a list of the following options (--dump by default):
 
     -d, --dump              Dump nodes using NodeDumper
     -p, --pretty-print      Pretty print file using PrettyPrinter\Standard
-    -j, --json-dump         Print compact json_encode() text, no depth limit, invalid UTF-8 as U+FFFD
+    -j, --json-dump         Print compact JSON, no depth limit, one \udcxx escape per byte outside UTF-8
         --var-dump          var_dump() nodes (for exact structure)
     -N, --resolve-names     Resolve names using NodeVisitor\NameResolver
     -c, --with-column-info  Show column-numbers for errors (if available)

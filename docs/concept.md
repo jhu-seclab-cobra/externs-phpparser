@@ -39,7 +39,7 @@ Caller ← exit code and output file ← parser process
 
 - **Typical:** A caller parses a valid file and reads the AST from the output file.
 - **Boundary:** No bundled interpreter is available and the first executable named `php` on PATH is below PHP 7.4: construction fails rather than searching later PATH entries.
-- **Boundary:** A source literal contains an invalid UTF-8 byte: the JSON dump substitutes U+FFFD while offsets continue to index the original source.
+- **Boundary:** A source literal contains an invalid UTF-8 byte: the JSON dump writes that byte `XX` as `\udcxx` while offsets continue to index the original source.
 - **Boundary:** A deeply nested concatenation produces deeply nested AST nodes: the JSON writer uses no fixed nesting-depth limit, subject to process time and available memory.
 - **Interaction:** A caller uses `executeWith` for a single parse; its target and parser flags are restored on every exit, while inherited execution settings retain assignments made by the caller.
 

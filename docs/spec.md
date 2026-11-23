@@ -1,6 +1,6 @@
 # externs-phpparser: JSON dump writer
 
-The algorithm the wrapper script runs for `--json-dump` ([JSON dump](glossary/glossary-dump.md#json-dump)). It writes the same JSON text as `json_encode($stmts, JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)` would with no depth limit, except for an infinite float, which `json_encode` rejects. It walks the AST with an explicit stack, so the writer imposes no fixed nesting-depth limit; available PHP memory and the wrapper’s one-minute execution timeout still bound the invocation.
+The algorithm the wrapper script runs for `--json-dump` ([JSON dump](glossary/glossary-dump.md#json-dump)). It writes the same JSON text as `json_encode($stmts, JSON_THROW_ON_ERROR)` would with no depth limit for values it can encode. The wrapper also writes infinite floats and strings that contain bytes outside UTF-8. It walks the AST with an explicit stack, so the writer imposes no fixed nesting-depth limit; available PHP memory and the wrapper’s one-minute execution timeout still bound the invocation.
 
 ## Problem
 
@@ -13,7 +13,7 @@ Every value met during the walk is resolved to one of three kinds before it is w
 
 1. **Object implementing `JsonSerializable`** (every php-parser node and comment): replaced by the value its `jsonSerialize()` returns, and resolved again. `jsonSerialize()` returns one level only; the children stay unexpanded objects.
 2. **Container:** a PHP array. It is a JSON array when its keys are exactly `0, 1, …, n-1` in order, the empty array included; otherwise a JSON object whose member names are the keys as strings. This is `json_encode`'s rule.
-3. **Leaf:** `null`, a boolean, an integer, a float, or a string. It is written as `json_encode` writes it with the two flags above, so string escaping, U+FFFD substitution and float formatting are `json_encode`'s own. An infinite float is the exception: it is written as the JSON number `1e999`, or `-1e999` when negative, which a JSON reader decoding numbers as IEEE 754 doubles (PHP `json_decode` among them) reads back as the same infinity. A NaN float has no JSON number and is passed to `json_encode`, which rejects it.
+3. **Leaf:** `null`, a boolean, an integer, a float, or a string. It uses `json_encode`'s spelling. In a string containing bytes outside UTF-8, each valid run uses that same spelling and each other byte `XX` is written as `\udcxx`. Interpret those unpaired units as bytes when reading the dump. An infinite float is the exception: it is written as the JSON number `1e999`, or `-1e999` when negative, which a JSON reader decoding numbers as IEEE 754 doubles (PHP `json_decode` among them) reads back as the same infinity. A NaN float has no JSON number and is passed to `json_encode`, which rejects it.
 
 Any other object fails the dump: php-parser emits none.
 
@@ -22,7 +22,7 @@ Any other object fails the dump: php-parser emits none.
 1. Resolve the input; it is a container. Write its opening bracket and push a frame holding its keys, its values, whether it is a JSON array, and a cursor at 0.
 2. While the stack is not empty, take the top frame.
    1. If its cursor is past its last value, write its closing bracket, pop it, and continue.
-   2. If its cursor is not 0, write `,`. If it is a JSON object, write the key as a JSON string and `:`.
+   2. If its cursor is not 0, write `,`. If it is a JSON object, write the key with the same string encoding as a leaf, followed by `:`.
    3. Resolve the value at the cursor and advance the cursor.
    4. A container: write its opening bracket and push its frame. A leaf: write it.
 3. Print the written text. A leaf `json_encode` rejects (a NaN float) throws `JsonException`, which ends the run as an encoding failure.
@@ -42,6 +42,7 @@ Each step either writes one value or closes one frame. Every value belongs to ex
 - `<?php $x = 1 . 1 . … . 1;` with 5000 `. 1` terms: PHP runs it. `json_encode` at its largest depth, `2147483647`, still fails ("Maximum stack depth exceeded") at about 3250 levels on an 8 MB stack. The writer emits all 5001 `Scalar_Int` nodes.
 - `[]` from a node with no statements: written as `[]`, as `json_encode` does.
 - `<?php $x = 1e999;`: PHP prints `float(INF)` for `$x`. php-parser yields a `Scalar_Float` whose value is infinite, and the writer emits `"value":1e999`. `-1e999` is an `Expr_UnaryMinus` over the same `Scalar_Float`, so a literal never yields a negative float leaf.
+- Raw FE and FF use distinct escapes `\udcfe` and `\udcff`. Genuine U+FFFD keeps its escape `\ufffd`.
 - NaN: no PHP literal parses to a NaN `Scalar_Float`, so a source file never reaches the encoding failure through a float.
 
 ## Complexity

@@ -78,7 +78,7 @@ println(result.code)
 | Option | Property | CLI Flag | Effect |
 |--------|----------|----------|--------|
 | Dump S-expr | `DumpType.S_EXPR` | `--dump` | Human-readable indented dump (default) |
-| JSON dump | `DumpType.JSON` | `--json-dump` | Compact JSON array of Stmt nodes with `nodeType` + `attributes` + subnodes, no nesting depth limit; bytes that are not valid UTF-8 become U+FFFD, offsets index the unchanged file |
+| JSON dump | `DumpType.JSON` | `--json-dump` | Compact JSON array of Stmt nodes with `nodeType` + `attributes` + subnodes, no nesting depth limit; each byte `XX` outside UTF-8 uses `\udcxx`, offsets index the unchanged file |
 | Dump var | `DumpType.VAR` | `--var-dump` | PHP `var_dump()` output for exact structure inspection |
 | Pretty print | `doPrettyPrint` | `--pretty-print` | Regenerate PHP source from AST (round-trip test) |
 | Name resolution | `doResolveName` | `--resolve-names` | Apply `NameResolver` visitor — resolves use/alias/namespace names to FQN |

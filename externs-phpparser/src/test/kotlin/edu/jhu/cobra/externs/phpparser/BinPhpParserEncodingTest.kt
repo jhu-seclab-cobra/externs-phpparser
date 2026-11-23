@@ -3,9 +3,10 @@ package edu.jhu.cobra.externs.phpparser
 /*
  * Tests for the JSON encoding of the Dump Script — bytes that are not valid UTF-8, deep ASTs and infinite floats.
  *
- * - `invalid UTF-8 byte in a literal should dump as U+FFFD` — raw 0xff inside a string literal
- * - `escaped invalid byte in a literal should dump as U+FFFD` — `"\xff"` escape decoded into the value
- * - `Latin-1 identifier should dump as U+FFFD` — `$caf\xe9` in a Latin-1 file
+ * - `invalid UTF-8 byte in a literal keeps its byte escape` — raw 0xff inside a string literal
+ * - `escaped invalid byte in a literal keeps its byte escape` — `"\xff"` escape decoded into the value
+ * - `Latin-1 identifier keeps its byte escape` — `$caf\xe9` in a Latin-1 file
+ * - `mixed text escapes each invalid byte independently` — truncated UTF-8 next to valid text and U+FFFD
  * - `valid UTF-8 names should stay distinct` — `$é` and `$e` dump as two names
  * - `offsets should index the unchanged file bytes` — startFilePos/endFilePos after an invalid byte
  * - `dump should equal json_encode output` — compact text of json_encode on a sample file
@@ -41,21 +42,28 @@ internal class BinPhpParserEncodingTest {
     private fun latin1Bytes(code: String): ByteArray = code.toByteArray(Charsets.ISO_8859_1)
 
     @Test
-    fun `invalid UTF-8 byte in a literal should dump as U+FFFD`() {
+    fun `invalid UTF-8 byte in a literal keeps its byte escape`() {
         val json = parseJson(createPhpFile(latin1Bytes("<?php echo \"\u00ff\";")), resolve = false)
-        assertTrue(json.contains("\"value\":\"\\ufffd\""), "Literal byte 0xff should dump as U+FFFD: $json")
+        assertTrue(json.contains("\"value\":\"\\udcff\""), json)
     }
 
     @Test
-    fun `escaped invalid byte in a literal should dump as U+FFFD`() {
+    fun `escaped invalid byte in a literal keeps its byte escape`() {
         val json = parseJson(createPhpFile(latin1Bytes("<?php echo \"\\xff\";")), resolve = false)
-        assertTrue(json.contains("\"value\":\"\\ufffd\""), "Decoded value 0xff should dump as U+FFFD: $json")
+        assertTrue(json.contains("\"value\":\"\\udcff\""), json)
     }
 
     @Test
-    fun `Latin-1 identifier should dump as U+FFFD`() {
+    fun `Latin-1 identifier keeps its byte escape`() {
         val json = parseJson(createPhpFile(latin1Bytes("<?php \$caf\u00e9 = 1;")), resolve = false)
-        assertTrue(json.contains("\"name\":\"caf\\ufffd\""), "Latin-1 0xe9 should dump as U+FFFD: $json")
+        assertTrue(json.contains("\"name\":\"caf\\udce9\""), json)
+    }
+
+    @Test
+    fun `mixed text escapes each invalid byte independently`() {
+        val code = """<?php echo "\xe2\x82é😀\xff\xfe�";"""
+        val json = parseJson(createPhpFile(code.toByteArray(Charsets.UTF_8)), resolve = false)
+        assertTrue(json.contains(""""value":"\udce2\udc82\u00e9\ud83d\ude00\udcff\udcfe\ufffd""""), json)
     }
 
     @Test
